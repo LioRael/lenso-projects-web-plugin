@@ -14,8 +14,8 @@ if rg -n 'lenso-http-auth|lenso_http_auth|sqlx|axum' Cargo.toml src tests; then
   exit 1
 fi
 
-rg -q 'lenso-capability-http-endpoint.*0\.2\.7' Cargo.toml
-rg -q 'lenso-auth-sdk.*0\.2\.1' Cargo.toml
+rg -q 'lenso-capability-http-endpoint.*0\.3\.0' Cargo.toml
+rg -q 'lenso-auth-sdk.*0\.2\.3' Cargo.toml
 rg -q 'list_projects_with_context' src/lib.rs
 rg -q 'create_project_update_with_context' src/lib.rs
 rg -q 'list_workflow_states_with_context' src/lib.rs
