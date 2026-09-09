@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Lenso Projects</title>
+    <link rel="stylesheet" href="/projects/assets/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail">
+        <div class="brand">
+          <span class="brand-mark">L</span><span>Lenso</span>
+        </div>
+        <nav aria-label="Projects navigation">
+          <button class="nav-item active" data-view="projects">
+            <span>◆</span> Projects
+          </button>
+          <button class="nav-item" data-view="issues">
+            <span>◫</span> Issues
+          </button>
+          <button class="nav-item" data-view="updates">
+            <span>◌</span> Updates
+          </button>
+        </nav>
+        <div class="connection">
+          <label for="organization">Organization</label>
+          <input id="organization" autocomplete="off" placeholder="org_demo" />
+          <p class="muted">Uses your signed-in App account.</p>
+          <button id="connect" class="secondary">Load workspace</button>
+          <p id="connection-state" class="muted">Not connected</p>
+        </div>
+      </aside>
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">PRODUCT DEVELOPMENT</p>
+            <h1>Projects</h1>
+          </div>
+          <div class="actions">
+            <button id="refresh" class="icon" title="Refresh">↻</button
+            ><button id="new-project">New project</button>
+          </div>
+        </header>
+        <section class="metrics" aria-label="Workspace summary">
+          <article>
+            <span>Active projects</span><strong id="metric-projects">—</strong>
+          </article>
+          <article>
+            <span>Open issues</span><strong id="metric-issues">—</strong>
+          </article>
+          <article>
+            <span>Current cycle</span><strong id="metric-cycle">—</strong>
+          </article>
+        </section>
+        <section class="workspace">
+          <div class="project-column">
+            <div class="section-head">
+              <h2>Roadmap</h2>
+              <label class="toggle"
+                ><input id="show-archived" type="checkbox" /> Archived</label
+              >
+            </div>
+            <div id="projects-list" class="project-list">
+              <div class="empty">
+                Enter an organization and load its workspace.
+              </div>
+            </div>
+            <button id="load-more-projects" class="ghost hidden">
+              Load more projects
+            </button>
+          </div>
+          <div class="detail-column">
+            <div id="project-detail" class="empty-panel">
+              <span class="empty-icon">◇</span>
+              <h2>Select a project</h2>
+              <p>Inspect its issue queue, status and latest updates.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <dialog id="project-dialog">
+      <form id="project-form" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <p class="eyebrow">CREATE</p>
+            <h2>New project</h2>
+          </div>
+          <button type="button" class="icon close" aria-label="Close">×</button>
+        </div>
+        <label>Name<input name="name" required maxlength="160" /></label>
+        <label
+          >Summary<textarea name="summary" rows="3" maxlength="2000"></textarea>
+        </label>
+        <div class="grid-2">
+          <label>Lead team<select name="lead_team_id" required></select></label
+          ><label>Status<select name="status_id" required></select></label>
+        </div>
+        <div class="grid-2">
+          <label>Start date<input name="start_date" type="date" /></label
+          ><label>Target date<input name="target_date" type="date" /></label>
+        </div>
+        <p id="form-error" class="error"></p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary close">Cancel</button
+          ><button type="submit">Create project</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="/projects/assets/app.js" defer></script>
+  </body>
+</html>

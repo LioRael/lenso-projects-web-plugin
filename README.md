@@ -30,7 +30,17 @@ The generic `lenso run` flow does not distribute or link arbitrary native Web Pl
 
 All errors use `application/problem+json`. Missing or invalid credentials produce `401`; a wrong actor kind produces `403`; private-team and missing resources use visibility-safe `404`; revision and idempotency conflicts produce `409`; invalid requests produce `400`. A Runtime Failure from Auth or Projects crosses the Endpoint boundary unchanged so Web Ingress can apply its infrastructure policy.
 
-Static HTML, CSS, and JavaScript are embedded in the crate. The browser stores the organization and bearer credential only in its local storage; production Hosts should normally supply credentials through their own secure session ingress policy.
+Static HTML, CSS, and JavaScript are embedded in the crate. The browser uses the App's existing HttpOnly session cookie; no bearer credential
+is entered or stored by the page. Hosts must select that cookie as `session`
+evidence and forward the Origin header. Configure `origin` to the exact App
+origin for session-authenticated mutations; missing or mismatched origins fail
+closed. Other credential schemes preserve their existing protocol behavior.
+Only the selected organization is remembered locally.
+
+Issue links use `/projects?organization_id=ORG&issue=STABLE_ID`. The page loads
+the Issue and its paginated activity through authenticated endpoints. Expired
+browser login offers `/login?return_to=...`; the App owns that login route and
+must validate the same-origin return path. Console embedding is not implied.
 
 ## Verification
 

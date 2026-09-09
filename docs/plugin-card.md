@@ -9,3 +9,12 @@
 - **Deletion proof:** a resolved Plan without `lenso.projects.web` still starts and invokes `lenso.projects@1` successfully.
 - **Host boundary:** a native Host must link this crate and bind it to Web Ingress. It is not automatically installed by generic `lenso run`.
 - **Console boundary:** the current Console has no UI-contribution contract; this Plugin therefore serves `/projects` but cannot truthfully self-register Console navigation.
+
+## Browser account and Issue recovery
+
+The browser delegates authentication to Host-selected session evidence. It stores
+no credential. Optional `origin` configuration gates session-authenticated writes
+with a single exact Origin; missing or mismatched evidence is rejected. Read-only
+Issue links carry organization and stable Issue identity, not authority. The
+Projects capability supplies activity and workflow facts; this Plugin does not
+infer updates or duplicate their storage.
