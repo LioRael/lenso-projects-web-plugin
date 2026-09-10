@@ -1,0 +1,49 @@
+/* App-owned layout only. Controls, typography roles, focus, motion, and theme
+   are provided by @lenso/ui and @lenso/tokens, as in Console. */
+@layer projects-layout {
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-content-primary);
+    background: var(--color-surface-canvas);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    margin: 0;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p {
+    margin: 0;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button,
+  input,
+  textarea {
+    font: inherit;
+  }
+  .work-surface {
+    min-height: 100dvh;
+    min-width: 0;
+    background: var(--color-surface-canvas);
+  }
+}

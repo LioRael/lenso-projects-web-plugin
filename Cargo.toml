@@ -14,21 +14,21 @@ root-slot = "web"
 
 [dependencies]
 futures = "0.3"
-lenso = { version = "0.5.0" }
-lenso-auth-sdk = { version = "0.2.1" }
-lenso-capability-auth = { version = "0.1.2" }
-lenso-capability-http-endpoint = { version = "0.2.7" }
-lenso-capability-projects = { version = "0.1.0" }
-lenso-capability-projects-admin = { version = "0.1.0" }
-lenso-capability-projects-collaboration = { version = "0.1.0" }
-lenso-kernel = { version = "0.2.0" }
+lenso = { version = "0.5.17" }
+lenso-auth-sdk = { version = "0.2.3" }
+lenso-capability-auth = { version = "0.2.0" }
+lenso-capability-http-endpoint = { version = "0.3.0" }
+lenso-capability-projects = { version = "0.2.0" }
+lenso-capability-projects-admin = { version = "0.2.0" }
+lenso-capability-projects-collaboration = { version = "0.2.0" }
+lenso-kernel = { version = "0.3.6" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [dev-dependencies]
-lenso-app-plan = { version = "0.3.0" }
-lenso-native-adapter = { version = "0.3.0" }
-lenso-runner = { version = "0.2.0" }
+lenso-app-plan = { version = "0.4.1" }
+lenso-native-adapter = { version = "0.3.13" }
+lenso-runner = { version = "0.2.13" }
 time = "0.3"
 tokio = { version = "1.52", features = ["macros", "rt"] }
 

@@ -22,9 +22,19 @@ use serde::{Deserialize, Serialize};
 /// Forces this native Plugin crate to be retained by a linked Host.
 pub const fn link() {}
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, lenso::PluginConfig)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectsWebConfig {
+    /// Exact browser App origin. Required for session-authenticated mutations.
+    #[serde(default)]
+    pub origin: Option<String>,
+}
+
 #[lenso::plugin]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectsWebPlugin {
+    #[config]
+    config: ProjectsWebConfig,
     auth: Port<auth::AuthClient>,
     projects: Port<projects::ProjectsClient>,
     collaboration: Port<collaboration::ProjectsCollaborationClient>,
@@ -41,6 +51,31 @@ impl ProjectsWebPlugin {
             "text/html; charset=utf-8",
             assets::PAGE,
         ))
+    }
+
+    #[get("projects.web.issues.activity", "/api/issues/{issue_id}/activity")]
+    async fn issue_activity(
+        &self,
+        _actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<IssuePath>,
+        QueryParams(query): QueryParams<PageQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        json_result(
+            self.projects
+                .list_activity_with_context(
+                    context,
+                    projects::ListActivityRequest {
+                        organization_id: query.organization_id,
+                        issue_id: Some(path.issue_id),
+                        project_id: None,
+                        after: query.after,
+                        limit: query.limit,
+                    },
+                )
+                .await,
+            StatusCode::OK,
+        )
     }
 
     #[get("projects.web.css", "/projects/assets/app.css")]
@@ -512,6 +547,14 @@ impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
         request: &'a HandleRequest,
     ) -> ExtractorFuture<'a, Self> {
         Box::pin(async move {
+            if !session_origin_allowed(&provider.config, request) {
+                return Err(response::problem(
+                    StatusCode::FORBIDDEN,
+                    "origin_rejected",
+                    "Browser writes require this App's exact configured Origin.",
+                )
+                .into());
+            }
             let evidence = request
                 .credential
                 .as_ref()
@@ -552,6 +595,23 @@ impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
             Ok(Self)
         })
     }
+}
+
+fn session_origin_allowed(config: &ProjectsWebConfig, request: &HandleRequest) -> bool {
+    if matches!(request.method.as_str(), "GET" | "HEAD" | "OPTIONS")
+        || request
+            .credential
+            .as_ref()
+            .is_none_or(|credential| credential.scheme != "session")
+    {
+        return true;
+    }
+    let origins: Vec<_> = request
+        .headers
+        .iter()
+        .filter(|header| header.name.eq_ignore_ascii_case("origin"))
+        .collect();
+    matches!((config.origin.as_deref(), origins.as_slice()), (Some(expected), [actual]) if actual.value == expected)
 }
 
 fn authentication_problem() -> HandleResponse {
@@ -927,6 +987,44 @@ mod tests {
     use super::*;
 
     #[test]
+    fn browser_mutations_require_one_exact_origin() {
+        let mut request = HandleRequest {
+            method: "POST".into(),
+            path: "/api/projects".into(),
+            route_id: "test".into(),
+            request_id: "test".into(),
+            query: None,
+            body: Vec::new().into(),
+            path_parameters: vec![],
+            headers: vec![],
+            credential: Some(lenso_capability_http_endpoint::HandleRequestCredential {
+                scheme: "session".into(),
+                value: "private".into(),
+            }),
+        };
+        let config = ProjectsWebConfig {
+            origin: Some("https://app.example".into()),
+        };
+        assert!(!session_origin_allowed(&config, &request));
+        request
+            .headers
+            .push(lenso_capability_http_endpoint::HandleRequestHeadersItem {
+                name: "origin".into(),
+                value: "https://other.example".into(),
+            });
+        assert!(!session_origin_allowed(&config, &request));
+        request.headers[0].value = "https://app.example".into();
+        assert!(session_origin_allowed(&config, &request));
+        request.headers.push(request.headers[0].clone());
+        assert!(!session_origin_allowed(&config, &request));
+        request.method = "GET".into();
+        assert!(session_origin_allowed(
+            &ProjectsWebConfig::default(),
+            &request
+        ));
+    }
+
+    #[test]
     fn serves_self_contained_page_and_assets_without_connected_ports() {
         block_on(async {
             let endpoint = EndpointTest::new(ProjectsWebPlugin::default());
@@ -984,7 +1082,7 @@ mod tests {
                 ("lenso.auth@1", "1.0.0", "one"),
                 ("lenso.projects-admin@1", "1.0.0", "one"),
                 ("lenso.projects-collaboration@1", "1.0.0", "one"),
-                ("lenso.projects@1", "1.0.0", "one"),
+                ("lenso.projects@1", "1.1.0", "one"),
             ]
         );
     }
@@ -1020,3 +1118,8 @@ mod tests {
         );
     }
 }
+
+impl_web_error!(
+    projects::ProjectsListActivityInvocationError,
+    projects::CAPABILITY_ID
+);
