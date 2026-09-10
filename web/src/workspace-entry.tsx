@@ -47,11 +47,19 @@ export function create(runtime: Runtime) {
     const [attempt, setAttempt] = useState<string>();
     const service = runtime.services;
     useEffect(() => {
+      let active = true;
       service
         .invoke<object, Connection>("projects", "connection_status", {}, { signal: props.signal })
-        .then(setConnection)
-        .catch((e) => setError(e.message));
-    }, [props.signal]);
+        .then((value) => {
+          if (active) setConnection(value);
+        })
+        .catch((e) => {
+          if (active && !props.signal.aborted) setError(e.message);
+        });
+      return () => {
+        active = false;
+      };
+    }, [service, props.signal]);
     useEffect(() => {
       if (!attempt) return;
       let cancelled = false;
@@ -85,7 +93,7 @@ export function create(runtime: Runtime) {
         cancelled = true;
         clearTimeout(timer);
       };
-    }, [attempt, props.signal]);
+    }, [service, attempt, props.signal]);
     const transport = useMemo(
       () => ({
         api: async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
@@ -98,8 +106,11 @@ export function create(runtime: Runtime) {
           const body = options.body
             ? JSON.parse(String(options.body))
             : Object.fromEntries(url.searchParams);
-          if (rule.length === 4)
-            body[rule[3]] = decodeURIComponent(url.pathname.match(rule[0])![1]);
+          if (rule.length === 4) {
+            const id = url.pathname.match(rule[0])?.[1];
+            if (!id) throw new Error("The workspace record URL is invalid.");
+            body[rule[3]] = decodeURIComponent(id);
+          }
           const result = await service.invoke<object, { status: number; body: T }>(
             "projects",
             rule[1],

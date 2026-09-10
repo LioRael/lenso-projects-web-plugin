@@ -68,7 +68,7 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
   return (
     <>
       <PageHeader.Root variant="simple">
-        <PageHeader.Row>
+        <PageHeader.Row style={{ minHeight: 44 }}>
           <Breadcrumb.Root aria-label="Issue location">
             <Breadcrumb.List>
               <Breadcrumb.Item>

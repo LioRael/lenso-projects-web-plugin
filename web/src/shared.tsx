@@ -9,9 +9,22 @@ export function Properties({ rows }: { rows: [string, ReactNode][] }) {
   return (
     <DescriptionList.Root>
       {rows.map(([name, value]) => (
-        <DescriptionList.Item key={name}>
+        <DescriptionList.Item
+          key={name}
+          style={{
+            gridTemplateColumns: "88px minmax(0, 1fr)",
+            gap: 12,
+            paddingBlock: 6,
+            borderBottom: "none",
+            alignItems: "start",
+          }}
+        >
           <DescriptionList.Term>{name}</DescriptionList.Term>
-          <DescriptionList.Description>{value}</DescriptionList.Description>
+          <DescriptionList.Description
+            style={{ overflowWrap: "anywhere", minWidth: 0, textAlign: "left" }}
+          >
+            {value}
+          </DescriptionList.Description>
         </DescriptionList.Item>
       ))}
     </DescriptionList.Root>
@@ -19,10 +32,12 @@ export function Properties({ rows }: { rows: [string, ReactNode][] }) {
 }
 export function Details({ title, children }: { title: ReactNode; children: ReactNode }) {
   return (
-    <Disclosure.Root>
+    <Disclosure.Root style={{ width: "100%" }}>
       <Disclosure.Item>
-        <Disclosure.Header>
-          <Disclosure.Trigger>
+        <Disclosure.Header style={{ margin: 0 }}>
+          <Disclosure.Trigger
+            style={{ width: "100%", minHeight: 32, padding: "6px 0", gap: 8, textAlign: "left" }}
+          >
             {title}
             <Disclosure.Icon />
           </Disclosure.Trigger>

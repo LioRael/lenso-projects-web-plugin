@@ -44,6 +44,9 @@ export function Workspace({ org }: { org: string }) {
       });
     return () => controller.abort();
   }, [api, org, archived, refresh]);
+  const activeProject =
+    projects.find((project) => project.project_id === selected)?.project_id ??
+    projects[0]?.project_id;
   async function more() {
     if (loadingMore) return;
     setLoadingMore(true);
@@ -83,8 +86,8 @@ export function Workspace({ org }: { org: string }) {
   return (
     <>
       <PageHeader.Root variant="simple">
-        <PageHeader.Row>
-          <PageHeader.Title>Projects</PageHeader.Title>
+        <PageHeader.Row style={{ minHeight: 44 }}>
+          <PageHeader.Title style={{ fontSize: 14, fontWeight: 500 }}>Projects</PageHeader.Title>
           <PageHeader.Spacer />
           <PageHeader.Actions>
             <IconButton
@@ -104,7 +107,9 @@ export function Workspace({ org }: { org: string }) {
         </PageHeader.Row>
       </PageHeader.Root>
       <div className="workspace-toolbar">
-        <span className="muted">{projects.length} projects</span>
+        <span className="muted">
+          {projects.length} {projects.length === 1 ? "project" : "projects"}
+        </span>
         <Button
           variant="ghost"
           size="compact"
@@ -127,13 +132,13 @@ export function Workspace({ org }: { org: string }) {
                 type="button"
                 key={p.project_id}
                 className="project-row"
-                aria-pressed={selected === p.project_id}
+                aria-pressed={activeProject === p.project_id}
                 onClick={() => setSelected(p.project_id)}
               >
                 <Folder size={16} aria-hidden="true" />
                 <span>
                   <strong>{p.name}</strong>
-                  <span className="muted project-summary">{p.summary || "No summary"}</span>
+                  {p.summary && <span className="muted project-summary">{p.summary}</span>}
                 </span>
               </button>
             ))}
@@ -150,11 +155,9 @@ export function Workspace({ org }: { org: string }) {
             )}
           </section>
           <section className="project-content">
-            {selected ? (
-              <ProjectDetail key={`${selected}:${refresh}`} org={org} id={selected} />
-            ) : (
-              <Empty title="Select a project" description="View its details and issue queue." />
-            )}
+            {activeProject ? (
+              <ProjectDetail key={`${activeProject}:${refresh}`} org={org} id={activeProject} />
+            ) : null}
           </section>
         </div>
       )}
@@ -197,8 +200,10 @@ function ProjectDetail({ org, id }: { org: string; id: string }) {
   return (
     <>
       <h1>{data.project.name}</h1>
-      <p className="issue-description">{data.project.summary || "No summary."}</p>
-      <h2 className="queue-title">Issues</h2>
+      {data.project.summary && <p className="issue-description">{data.project.summary}</p>}
+      <h2 className="queue-title">
+        Issues <span className="muted">{data.issues.length}</span>
+      </h2>
       {data.issues.length ? (
         data.issues.map((i) => (
           <a key={i.issue_id} href={issueHref(org, i.issue_id)} className="issue-row">

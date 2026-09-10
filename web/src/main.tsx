@@ -9,6 +9,7 @@ import "@lenso/tokens/styles.css";
 import "@lenso/ui/preflight.css";
 import "@lenso/ui/styles.css";
 import "./layout.css";
+import "./workspace.css";
 import { IssuePage } from "./issue";
 import { Workspace } from "./workspace";
 
