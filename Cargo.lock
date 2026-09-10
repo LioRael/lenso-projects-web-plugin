@@ -611,7 +611,7 @@ checksum = "8f24f444677f5b9857d4aa6f2ca90002243eb756a7f153bb721206f88abe6b07"
 
 [[package]]
 name = "lenso-projects-web-plugin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "lenso",
