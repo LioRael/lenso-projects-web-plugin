@@ -24,7 +24,11 @@ This crate is a linked native Plugin, not a portable Bundle and not a standalone
 4. bind its one Auth, Projects, Projects Collaboration, and Projects Admin requirements;
 5. bind the Host's Web Ingress `many lenso.http.endpoint@1` requirement to this Plugin.
 
-The generic `lenso run` flow does not distribute or link arbitrary native Web Plugins. The current Console also has no `lenso.ui.contribution@1` or `lenso.web.shell@1` contract, so installing this crate does **not** add a Console navigation item. It serves an honest standalone `/projects` surface when a Host links and routes it. Console embedding remains a separate platform prerequisite.
+The generic `lenso run` flow does not distribute arbitrary native Web Plugins. The
+business Host links this Plugin for its authenticated HTTP operations. The Console
+Host can additionally admit `lenso.console.workspace.projects`, which owns the
+`projects` native Workspace contribution and a fixed-operation business adapter.
+Installing this business crate alone does not add Console navigation.
 
 ## HTTP behavior
 
@@ -40,7 +44,7 @@ Only the selected organization is remembered locally.
 Issue links use `/projects?organization_id=ORG&issue=STABLE_ID`. The page loads
 the Issue and its paginated activity through authenticated endpoints. Expired
 browser login offers `/login?return_to=...`; the App owns that login route and
-must validate the same-origin return path. Console embedding is not implied.
+must validate the same-origin return path. The Console Workspace obtains a separate, short-lived delegated grant through business App consent.
 
 ## Verification
 
@@ -52,3 +56,58 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 ./scripts/check-repository-boundary.sh
 ./scripts/check-public-packages.sh
 ```
+
+## Shared Lenso UI
+
+`web/` is the React source for this Plugin's browser surface. It consumes the
+same `@lenso/ui@0.5.0`, `@lenso/tokens@0.5.0`, and IBM Plex control font as Console.
+PageHeader, Breadcrumb, DescriptionList, Disclosure, Button, IconButton,
+ContentState, Dialog, TextField, TextArea, and Select are package components.
+`web/src/layout.css` owns only the Projects composition and responsive layout;
+all colors, radii, spacing primitives and interaction treatments use shared tokens.
+
+```sh
+npm ci --prefix web
+npm run build --prefix web
+npm test --prefix web
+```
+
+The build emits the committed standalone `src/assets/app.*` and native `src/workspace/workspace.{js,css}` files. Fonts and runtime
+dependencies are bundled, so the browser makes no CDN requests and Rust consumers
+need no Node runtime. CI rebuilds and checks these exact assets before testing the
+Plugin. Run `npm run check:assets --prefix web` to check freshness locally. Browser
+tests use controlled HTTP fixtures; real session/Tool acceptance remains in the
+Agent repository's `scripts/projects-acceptance/browser.mjs`.
+
+System appearance is resolved before passing the theme to `ThemeScope`, including
+its portal host. In Console, the native module follows the supplied environment and uses Console navigation. Issue
+activity and record IDs use shared Disclosure components; pagination, HTTP errors,
+session login return, project creation and server authority are preserved.
+
+## Open inside Console
+
+Build this repository, then from the Console checkout run:
+
+```sh
+node scripts/import-projects-workspace.mjs /path/to/lenso-projects-web-plugin
+LENSO_CONSOLE_PROJECTS_ORIGIN=http://127.0.0.1:55440 cargo run --locked --manifest-path service/Cargo.toml --bin lenso-console-with-agent
+```
+
+This source command requires the Agent binaries on PATH (or configured through
+`LENSO_AGENT_WEB_BIN` and `LENSO_CONSOLE_AGENT_WEB_BIN`). It does not imply that the
+currently published npm package already includes this change.
+
+The native module renders only Projects content in the real Console Shell. The
+primary rail, context sidebar, theme, footer and mini agent remain Console-owned.
+`createWorkspace(runtime)` uses Console's React singleton and declared service
+operations. There is no iframe, additional application shell, CDN, arbitrary proxy,
+or credential passed to JavaScript. The minimal `/projects` page remains a business
+App login/deep-link fallback without a duplicate sidebar.
+
+The business App must route the existing Projects Web operations and consent to
+their exact audiences. Credentials remain generation-local in the Console Workspace
+Plugin and expire after at most one hour; restart or expiration requires reconnecting.
+The separate Agent business connection is not silently shared with this Workspace.
+
+Real Console, business login, project creation and permission checks are exercised
+by the Agent repository's `scripts/projects-acceptance/console-browser.mjs`.
