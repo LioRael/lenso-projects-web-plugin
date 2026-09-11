@@ -198,3 +198,461 @@
     }
   }
 }
+@scope (.projects-workspace) {
+  .project-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    color: var(--color-content-tertiary);
+  }
+  .project-search input {
+    border: 0;
+    background: transparent;
+    color: var(--color-content-primary);
+    font: inherit;
+    min-width: 0;
+    width: 220px;
+    outline-offset: 3px;
+  }
+  .workspace-toolbar {
+    gap: 16px;
+    min-height: 42px;
+    padding: 4px 24px;
+  }
+  .projects-table-head,
+  .project-table-row {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) 180px 140px;
+    gap: 20px;
+    align-items: center;
+    padding: 0 24px;
+    font-size: 13px;
+  }
+  .projects-table-head {
+    height: 34px;
+    background: var(--color-surface-secondary);
+    color: var(--color-content-tertiary);
+    font-size: 12px;
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  .project-table-row {
+    min-height: 44px;
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  .project-name,
+  .table-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .project-name strong {
+    font-weight: 500;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .project-name svg {
+    color: var(--color-content-tertiary);
+    flex-shrink: 0;
+  }
+  .table-status {
+    font-size: 12px;
+    color: var(--color-content-secondary);
+    gap: 7px;
+  }
+  .project-table-row:hover,
+  .issue-table-row:hover,
+  .project-issues-link:hover {
+    background: var(--color-surface-interactive-hover);
+  }
+  .project-table-row:focus-visible,
+  .issue-table-row:focus-visible,
+  .workspace-header-title a:focus-visible,
+  .project-issues-link:focus-visible {
+    outline: 2px solid var(--color-action-primary);
+    outline-offset: -2px;
+  }
+  .project-overview {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 48px 40px;
+  }
+  .project-emblem {
+    color: var(--color-content-secondary);
+    margin-bottom: 16px;
+  }
+  .project-overview h1 {
+    font-size: 24px;
+    line-height: 1.3;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+    margin: 0 0 8px;
+    overflow-wrap: anywhere;
+  }
+  .project-lede {
+    font-size: 14px;
+    color: var(--color-content-secondary);
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .project-metadata {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+    font-size: 12px;
+  }
+  .project-metadata > span {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .project-overview-section {
+    border-top: 1px solid var(--color-border-tertiary);
+    margin-top: 28px;
+    padding-top: 24px;
+  }
+  .project-overview-section h2 {
+    font-size: 13px;
+    font-weight: 500;
+    margin: 0 0 12px;
+  }
+  .project-issues-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    padding: 10px 0;
+  }
+  .project-issues-link > span:first-child {
+    flex: 1;
+  }
+  .issue-group-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 10px 24px;
+    background: var(--color-surface-secondary);
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  .issue-table-row {
+    display: grid;
+    grid-template-columns: 14px 80px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 24px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  .issue-table-row > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .issue-table-row > svg {
+    color: var(--color-content-tertiary);
+  }
+  .issue-content {
+    max-width: 760px;
+    padding: 48px 40px;
+  }
+  .issue-content h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 12px;
+  }
+  .issue-description {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .issue-properties {
+    padding: 20px 24px;
+  }
+  .issue-layout.properties-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .issue-properties[hidden] {
+    display: none;
+  }
+  .back-to-project {
+    font-size: 12px;
+    color: var(--color-content-tertiary);
+    margin-left: 12px;
+  }
+  .activity-section {
+    margin-top: 40px;
+    padding-top: 24px;
+  }
+  @media (max-width: 700px) {
+    .projects-table-head,
+    .project-table-row {
+      grid-template-columns: minmax(100px, 1fr) 100px;
+      gap: 12px;
+      padding-inline: 16px;
+    }
+    .projects-table-head > :last-child,
+    .project-table-row > :last-child {
+      display: none;
+    }
+    .workspace-toolbar {
+      padding-inline: 16px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .project-search input {
+      width: 130px;
+    }
+    .project-overview,
+    .issue-content {
+      padding: 28px 20px;
+    }
+    .issue-table-row {
+      padding-inline: 16px;
+      grid-template-columns: 14px 64px minmax(0, 1fr);
+      gap: 8px;
+    }
+    .back-to-project {
+      display: none;
+    }
+  }
+}
+@scope (.projects-workspace) {
+  .workspace-picker {
+    width: min(100%, 560px);
+    margin: 64px auto;
+    padding: 0 24px;
+  }
+  .workspace-picker h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  .workspace-picker header p {
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .workspace-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 8px;
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  .workspace-option:hover {
+    background: var(--color-surface-interactive-hover);
+  }
+  .workspace-option > span:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+  .workspace-option strong,
+  .workspace-option small {
+    display: block;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+  .workspace-option strong {
+    font-weight: 500;
+  }
+  .workspace-option small {
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .workspace-avatar {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: var(--color-surface-selected);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .workspace-picker-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+  }
+}
+@scope (.projects-workspace) {
+  .workspace-picker-compact {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+  .workspace-picker-compact .workspace-options {
+    max-height: min(360px, 50dvh);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .workspace-search {
+    border-bottom: 1px solid var(--color-border-tertiary);
+    padding: 10px 8px;
+    margin-bottom: 8px;
+  }
+  .workspace-search input {
+    width: 100%;
+  }
+  .workspace-switch-name {
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .workspace-option:focus-visible {
+    outline: 2px solid var(--color-action-primary);
+    outline-offset: -2px;
+  }
+  .refresh-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 10px 24px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--color-border-tertiary);
+  }
+  @media (max-width: 700px) {
+    .workspace-switch-name {
+      max-width: 100px;
+    }
+    .refresh-notice {
+      padding-inline: 16px;
+    }
+  }
+}
+@scope (.projects-workspace) {
+  .header-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+}
+@scope (.projects-workspace) {
+  fieldset.form-fields {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  .workspace-option[aria-current] {
+    background: var(--color-surface-selected);
+  }
+}
+
+@scope (.projects-workspace) {
+  .workspace-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .workspace-header-title > a,
+  .workspace-header-title > svg {
+    color: var(--color-content-secondary);
+    flex-shrink: 0;
+  }
+  .workspace-header-name {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .workspace-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-inline-start: auto;
+  }
+  .workspace-header-views {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    max-width: 100%;
+    margin-inline-start: 12px;
+    gap: 2px;
+  }
+  .workspace-header-views a {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    color: var(--color-content-secondary);
+  }
+  .workspace-header-views a:hover,
+  .workspace-header-views a[aria-current] {
+    background: var(--color-surface-selected);
+    color: var(--color-content-primary);
+  }
+  @media (max-width: 760px) {
+    .workspace-header-name {
+      max-width: 120px;
+    }
+    .workspace-header-views {
+      order: 2;
+      flex-basis: 100%;
+      margin-inline-start: 6px;
+    }
+  }
+}
+
+@scope (.projects-workspace) {
+  .issue-editor fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .issue-editor fieldset > div {
+    max-width: 100%;
+  }
+  .issue-edit-properties,
+  .issue-edit-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .issue-edit-properties label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-content-secondary);
+  }
+  .issue-edit-properties select {
+    background: var(--color-surface-primary);
+    color: var(--color-content-primary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+  }
+}
+
+@scope (.projects-workspace) {
+  .issue-assignee {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 12px;
+  }
+  .issue-assignee > label {
+    color: var(--color-content-secondary);
+  }
+  .issue-assignee p {
+    margin: 0;
+  }
+}

@@ -2,7 +2,7 @@
 
 - **Job:** operate a Linear-like project and issue workflow through a removable Web surface.
 - **Provides:** `lenso.http.endpoint@1` (`describe`, `handle`).
-- **Requires:** exactly one each of `lenso.auth@1`, `lenso.projects@1`, `lenso.projects-collaboration@1`, and `lenso.projects-admin@1`.
+- **Requires:** exactly one each of `lenso.auth@1`, `lenso.projects@1`, `lenso.projects-collaboration@1`, `lenso.projects-admin@1`, and `lenso.organization-directory@1`. Assignment additionally uses one optional Host-selected `lenso.organization-membership-admin@1` reader.
 - **Owns:** route descriptions, static page assets, typed HTTP decoding, authentication evidence selection, ActorAssertion forwarding, and intentional HTTP error representation.
 - **Does not own:** projects, issues, comments, updates, catalogs, membership, authorization policy, visibility, revisions, idempotency, or persistence.
 - **Success proof:** a real Kernel composition demonstrates that the target Projects Provider verifies the forwarded actor assertion.
@@ -26,3 +26,26 @@ private components. Projects owns the page composition and request state; Lenso 
 owns reusable controls and tokens. Compiled assets remain part of this removable
 Plugin. No new capabilities, persistence, Host routes, or authorization policy
 are introduced by adopting React. The existing add/remove proof still applies.
+
+## Issue editing and Console context
+
+The page edits title, description, workflow state and priority through the existing
+`update_issue` operation. The provider remains the authorization and revision
+owner. Writes preserve labels and related record IDs, include the original
+revision, and reuse an idempotency key only for an identical retry. A conflict
+keeps the draft and requires reviewing the latest record before another save.
+
+The optional Console page bridge supplies a visible Issue-reference draft when
+opening a new mini Agent chat; it conveys no credential or authority and never
+submits automatically. Completed mini Agent turns invalidate the displayed
+record; active edits keep their original revision for conflict detection.
+Visible pages also refresh on focus and every 15 seconds for external updates.
+
+Assignment uses the additive Projects Collaboration 1.1 operations and the
+same Issue revision. The optional Organization Membership Admin reader supplies
+active members only after the authenticated actor can read this Issue. No
+membership mutation is exposed. The Projects provider verifies the selected
+member and private-Team visibility before assignment. Hosts without one bound
+member reader keep other Projects functionality and show an explicit directory
+unavailable state. Member display names fall back to stable subject identifiers
+when the directory does not supply profile names.

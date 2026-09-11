@@ -1,25 +1,78 @@
+import { canKeepResults } from "./api";
 import { useProjects } from "./transport";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@lenso/ui/button";
-import { PageHeader } from "@lenso/ui/page-header";
+import { WorkspaceHeader } from "./workspace-header";
 import { IconButton } from "@lenso/ui/icon-button";
 import { TextField } from "@lenso/ui/text-field";
 import { TextArea } from "@lenso/ui/text-area";
 import { Select } from "@lenso/ui/select";
 import { Dialog } from "@lenso/ui/dialog";
-import { RefreshCw, Plus, Folder, ChevronDown } from "lucide-react";
-import { query, type Page, type Project, type Issue, type Team, type ProjectStatus } from "./api";
-import { Empty, Feedback } from "./shared";
+import {
+  RefreshCw,
+  Plus,
+  Folder,
+  ChevronDown,
+  Circle,
+  Search,
+  CalendarDays,
+  ChevronRight,
+} from "lucide-react";
+import {
+  allPages,
+  query,
+  shortDate,
+  type Page,
+  type Project,
+  type Issue,
+  type Team,
+  type ProjectStatus,
+} from "./api";
+import { WorkspacePicker } from "./workspace-picker";
+import { Empty, Feedback, RefreshNotice } from "./shared";
 
+function savedListView(org: string): { search: string; archived: boolean } {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(`projects:list:${org}`) || "null");
+    return {
+      search: typeof value?.search === "string" ? value.search : "",
+      archived: value?.archived === true,
+    };
+  } catch {
+    return { search: "", archived: false };
+  }
+}
 export function Workspace({ org }: { org: string }) {
-  const { api, openWorkspace } = useProjects();
+  const { api, openWorkspace, openProject } = useProjects();
   const [projects, setProjects] = useState<Project[]>([]);
   const [cursor, setCursor] = useState<string | null>();
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
-  const [archived, setArchived] = useState(false);
+  const [archived, setArchived] = useState(() => savedListView(org).archived);
   const [refresh, setRefresh] = useState(0);
-  const [selected, setSelected] = useState<string>();
+  const [search, setSearch] = useState(() => savedListView(org).search);
+  useEffect(() => {
+    if (!org) return;
+    try {
+      sessionStorage.setItem(`projects:list:${org}`, JSON.stringify({ search, archived }));
+    } catch {
+      /* Storage is optional; navigation remains usable. */
+    }
+  }, [org, search, archived]);
+  const [statuses, setStatuses] = useState<ProjectStatus[]>([]);
+  useEffect(() => {
+    if (!org) return;
+    const c = new AbortController();
+    api<Page<ProjectStatus>>(
+      `/api/projects/catalog/project-statuses?${query({ organization_id: org, limit: 100 })}`,
+      { signal: c.signal },
+    )
+      .then((p) => {
+        if (!c.signal.aborted) setStatuses(p.items);
+      })
+      .catch(() => {});
+    return () => c.abort();
+  }, [api, org]);
   const [creating, setCreating] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   useEffect(() => {
@@ -44,12 +97,13 @@ export function Workspace({ org }: { org: string }) {
       });
     return () => controller.abort();
   }, [api, org, archived, refresh]);
-  const activeProject =
-    projects.find((project) => project.project_id === selected)?.project_id ??
-    projects[0]?.project_id;
+  const visibleProjects = projects.filter((p) =>
+    `${p.name} ${p.summary || ""}`.toLowerCase().includes(search.toLowerCase()),
+  );
   async function more() {
-    if (loadingMore) return;
+    if (busy || loadingMore || !cursor) return;
     setLoadingMore(true);
+    setError(undefined);
     try {
       const page = await api<Page<Project>>(
         `/api/projects?${query({ organization_id: org, include_archived: archived, limit: 50, after: cursor })}`,
@@ -62,34 +116,13 @@ export function Workspace({ org }: { org: string }) {
       setLoadingMore(false);
     }
   }
-  if (!org)
-    return (
-      <div className="setup">
-        <Empty
-          title="Open your workspace"
-          description="Use the organization from your business App. Your signed-in account determines access."
-        />
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            openWorkspace(String(new FormData(e.currentTarget).get("organization")).trim());
-          }}
-        >
-          <TextField.Root style={{ maxWidth: "100%", minWidth: 0 }}>
-            <TextField.Label>Organization</TextField.Label>
-            <TextField.Control name="organization" required autoComplete="off" />
-          </TextField.Root>
-          <Button type="submit">Open workspace</Button>
-        </form>
-      </div>
-    );
+  if (!org) return <WorkspacePicker autoEnter onChoose={openWorkspace} />;
   return (
     <>
-      <PageHeader.Root variant="simple">
-        <PageHeader.Row style={{ minHeight: 44 }}>
-          <PageHeader.Title style={{ fontSize: 14, fontWeight: 500 }}>Projects</PageHeader.Title>
-          <PageHeader.Spacer />
-          <PageHeader.Actions>
+      <WorkspaceHeader
+        org={org}
+        actions={
+          <>
             <IconButton
               aria-label="Refresh projects"
               disabled={busy || loadingMore}
@@ -103,63 +136,47 @@ export function Workspace({ org }: { org: string }) {
               <Plus size={14} />
               New project
             </Button>
-          </PageHeader.Actions>
-        </PageHeader.Row>
-      </PageHeader.Root>
+          </>
+        }
+      >
+        Projects
+      </WorkspaceHeader>
       <div className="workspace-toolbar">
+        <label className="project-search">
+          <Search size={14} />
+          <input
+            aria-label="Search projects"
+            placeholder={cursor ? "Search loaded projects…" : "Search projects…"}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
         <span className="muted">
-          {projects.length} {projects.length === 1 ? "project" : "projects"}
+          {search ? `${visibleProjects.length} of ` : ""}
+          {projects.length}
+          {cursor ? "+" : ""} {projects.length === 1 ? "project" : "projects"}
         </span>
         <Button
           variant="ghost"
           size="compact"
-          disabled={loadingMore}
+          disabled={busy || loadingMore}
           aria-pressed={archived}
           onClick={() => setArchived((v) => !v)}
         >
           Include archived
         </Button>
       </div>
-      {error ? (
+      {error && canKeepResults(error) && projects.length > 0 && (
+        <RefreshNotice error={error} retry={() => setRefresh((n) => n + 1)} />
+      )}
+      {error && (!canKeepResults(error) || !projects.length) ? (
         <Feedback error={error} retry={() => setRefresh((n) => n + 1)} />
       ) : busy && !projects.length ? (
         <Empty title="Loading projects…" />
       ) : (
-        <div className="workspace-columns">
-          <section className="project-list" aria-label="Projects">
-            {projects.map((p) => (
-              <button
-                type="button"
-                key={p.project_id}
-                className="project-row"
-                aria-pressed={activeProject === p.project_id}
-                onClick={() => setSelected(p.project_id)}
-              >
-                <Folder size={16} aria-hidden="true" />
-                <span>
-                  <strong>{p.name}</strong>
-                  {p.summary && <span className="muted project-summary">{p.summary}</span>}
-                </span>
-              </button>
-            ))}
-            {!projects.length && (
-              <Empty
-                title="No projects"
-                description="Create a project to organize your team's work."
-              />
-            )}
-            {cursor && (
-              <Button variant="ghost" loading={loadingMore} onClick={more}>
-                Load more projects
-              </Button>
-            )}
-          </section>
-          <section className="project-content">
-            {activeProject ? (
-              <ProjectDetail key={`${activeProject}:${refresh}`} org={org} id={activeProject} />
-            ) : null}
-          </section>
-        </div>
+        <ProjectList
+          {...{ projects, visibleProjects, statuses, org, cursor, busy, loadingMore, more }}
+        />
       )}
       <CreateProject
         org={org}
@@ -167,19 +184,92 @@ export function Workspace({ org }: { org: string }) {
         onOpenChange={setCreating}
         onCreated={(id) => {
           setCreating(false);
-          setSelected(id);
-          setRefresh((n) => n + 1);
+          openProject(org, id);
         }}
       />
     </>
   );
 }
-function ProjectDetail({ org, id }: { org: string; id: string }) {
-  const { api, issueHref } = useProjects();
-  const [data, setData] = useState<{ project: Project; issues: Issue[] }>();
+function ProjectList({
+  projects,
+  visibleProjects,
+  statuses,
+  org,
+  cursor,
+  busy,
+  loadingMore,
+  more,
+}: {
+  projects: Project[];
+  visibleProjects: Project[];
+  statuses: ProjectStatus[];
+  org: string;
+  cursor?: string | null;
+  busy: boolean;
+  loadingMore: boolean;
+  more: () => void;
+}) {
+  const { projectHref } = useProjects();
+  return (
+    <section className="projects-table" aria-label="Projects" aria-busy={busy || loadingMore}>
+      <div className="projects-table-head">
+        <span>Name</span>
+        <span>Status</span>
+        <span>Target date</span>
+      </div>
+      {visibleProjects.map((p) => (
+        <a key={p.project_id} className="project-table-row" href={projectHref(org, p.project_id)}>
+          <span className="project-name">
+            <Folder size={15} />
+            <strong>{p.name}</strong>
+          </span>
+          <span className="table-status">
+            <Circle size={12} />
+            {p.archived
+              ? "Archived"
+              : statuses.find((s) => s.status_id === p.status_id)?.name || "—"}
+          </span>
+          <span className="muted">{p.target_date ? shortDate(p.target_date) : "—"}</span>
+        </a>
+      ))}
+      {!projects.length && (
+        <Empty title="No projects" description="Create a project to organize your team's work." />
+      )}
+      {!!projects.length && !visibleProjects.length && (
+        <Empty title="No matching projects" description="Try another name or summary." />
+      )}
+      {cursor && (
+        <Button variant="ghost" loading={loadingMore} onClick={more}>
+          Load more projects
+        </Button>
+      )}
+    </section>
+  );
+}
+export function ProjectDetail({
+  org,
+  id,
+  view = "overview",
+}: {
+  org: string;
+  id: string;
+  view?: string;
+}) {
+  const { api, workspaceHref, projectHref } = useProjects();
+  const [data, setData] = useState<{
+    project: Project;
+    issues: Issue[];
+    next?: string | null;
+    statuses: ProjectStatus[];
+  }>();
   const [error, setError] = useState<Error>();
+  const [busy, setBusy] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     const c = new AbortController();
+    setError(undefined);
+    setBusy(true);
     Promise.all([
       api<Project>(`/api/projects/${encodeURIComponent(id)}?${query({ organization_id: org })}`, {
         signal: c.signal,
@@ -188,35 +278,181 @@ function ProjectDetail({ org, id }: { org: string; id: string }) {
         `/api/projects/${encodeURIComponent(id)}/issues?${query({ organization_id: org, include_archived: false, limit: 50 })}`,
         { signal: c.signal },
       ),
+      api<Page<ProjectStatus>>(
+        `/api/projects/catalog/project-statuses?${query({ organization_id: org, limit: 100 })}`,
+        { signal: c.signal },
+      ).catch(() => ({ items: [] })),
     ])
-      .then(([project, issues]) => setData({ project, issues: issues.items }))
+      .then(([project, issues, statuses]) => {
+        if (!c.signal.aborted) {
+          setData({
+            project,
+            issues: issues.items,
+            next: issues.next_cursor,
+            statuses: statuses.items,
+          });
+          document.title = `${project.name} · Projects`;
+        }
+      })
       .catch((e) => {
         if (!c.signal.aborted) setError(e);
+      })
+      .finally(() => {
+        if (!c.signal.aborted) setBusy(false);
       });
     return () => c.abort();
-  }, [api, org, id]);
-  if (error) return <Feedback error={error} />;
-  if (!data) return <Empty title="Loading project…" />;
+  }, [api, org, id, refresh]);
+  async function more() {
+    if (!data?.next || loadingMore || busy) return;
+    setLoadingMore(true);
+    setError(undefined);
+    try {
+      const page = await api<Page<Issue>>(
+        `/api/projects/${encodeURIComponent(id)}/issues?${query({ organization_id: org, include_archived: false, limit: 50, after: data.next })}`,
+      );
+      setData((d) =>
+        d ? { ...d, issues: [...d.issues, ...page.items], next: page.next_cursor } : d,
+      );
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   return (
     <>
-      <h1>{data.project.name}</h1>
-      {data.project.summary && <p className="issue-description">{data.project.summary}</p>}
-      <h2 className="queue-title">
-        Issues <span className="muted">{data.issues.length}</span>
-      </h2>
-      {data.issues.length ? (
-        data.issues.map((i) => (
-          <a key={i.issue_id} href={issueHref(org, i.issue_id)} className="issue-row">
-            <span className="muted">{i.identifier}</span>
-            <span>{i.title}</span>
-          </a>
-        ))
+      <WorkspaceHeader
+        org={org}
+        views={
+          <>
+            <a href={projectHref(org, id)} aria-current={view === "overview" ? "page" : undefined}>
+              Overview
+            </a>
+            <a
+              href={projectHref(org, id, "issues")}
+              aria-current={view === "issues" ? "page" : undefined}
+            >
+              Issues
+            </a>
+          </>
+        }
+        actions={
+          <IconButton
+            aria-label="Refresh project"
+            disabled={busy || loadingMore}
+            variant="ghost"
+            size="compact"
+            onClick={() => setRefresh((n) => n + 1)}
+          >
+            <RefreshCw />
+          </IconButton>
+        }
+      >
+        <a href={workspaceHref(org)}>Projects</a>
+        <ChevronRight size={12} />
+        <span className="workspace-header-name">{data?.project.name || "Project"}</span>
+      </WorkspaceHeader>
+      {error && canKeepResults(error) && data && (
+        <RefreshNotice error={error} retry={() => setRefresh((n) => n + 1)} />
+      )}
+      {error && (!canKeepResults(error) || !data) ? (
+        <Feedback error={error} retry={() => setRefresh((n) => n + 1)} />
+      ) : !data ? (
+        <Empty title="Loading project…" />
+      ) : view === "issues" ? (
+        <ProjectIssues {...{ data, org, id, loadingMore, more }} />
       ) : (
-        <p className="muted">No issues yet.</p>
+        <ProjectOverview org={org} id={id} data={data} />
       )}
     </>
   );
 }
+
+function ProjectIssues({
+  data,
+  org,
+  id,
+  loadingMore,
+  more,
+}: {
+  data: { issues: Issue[]; next?: string | null };
+  org: string;
+  id: string;
+  loadingMore: boolean;
+  more: () => void;
+}) {
+  const { issueHref } = useProjects();
+  return (
+    <section aria-label="Project issues">
+      <div className="issue-group-heading">
+        Issues{" "}
+        <span className="muted">
+          {data.issues.length}
+          {data.next ? "+" : ""}
+        </span>
+      </div>
+      {data.issues.map((i) => (
+        <a key={i.issue_id} href={issueHref(org, i.issue_id, id)} className="issue-table-row">
+          <Circle size={14} />
+          <span className="muted">{i.identifier}</span>
+          <span>{i.title}</span>
+        </a>
+      ))}
+      {!data.issues.length && <Empty title="No issues yet" />}
+      {data.next && (
+        <Button loading={loadingMore} variant="ghost" onClick={more}>
+          Load more issues
+        </Button>
+      )}
+    </section>
+  );
+}
+function ProjectOverview({
+  org,
+  id,
+  data,
+}: {
+  org: string;
+  id: string;
+  data: { project: Project; issues: Issue[]; next?: string | null; statuses: ProjectStatus[] };
+}) {
+  const { projectHref } = useProjects();
+  return (
+    <article className="project-overview">
+      <Folder className="project-emblem" size={26} />
+      <h1>{data.project.name}</h1>
+      {data.project.summary && <p className="project-lede">{data.project.summary}</p>}
+      <div className="project-metadata">
+        <span className="muted">Properties</span>
+        <span>
+          <Circle size={13} />
+          {data.project.archived
+            ? "Archived"
+            : data.statuses.find((s) => s.status_id === data.project.status_id)?.name ||
+              "Status unavailable"}
+        </span>
+        {data.project.target_date && (
+          <span>
+            <CalendarDays size={13} />
+            {shortDate(data.project.target_date)}
+          </span>
+        )}
+      </div>
+      <div className="project-overview-section">
+        <h2>Issues</h2>
+        <a className="project-issues-link" href={projectHref(org, id, "issues")}>
+          <span>View project issues</span>
+          <span className="muted">
+            {data.issues.length}
+            {data.next ? "+" : ""}
+          </span>
+          <ChevronRight size={14} />
+        </a>
+      </div>
+    </article>
+  );
+}
+
 function Choice({
   label,
   name,
@@ -267,6 +503,8 @@ function CreateProject({
 }) {
   const { api } = useProjects();
   const pendingWrite = useRef<{ fields: string; payload: Record<string, unknown> } | null>(null);
+  const submitting = useRef(false);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [catalog, setCatalog] = useState<{ teams: Team[]; statuses: ProjectStatus[] }>();
   const [error, setError] = useState<Error>();
   const [saving, setSaving] = useState(false);
@@ -276,26 +514,48 @@ function CreateProject({
     setCatalog(undefined);
     setError(undefined);
     Promise.all([
-      api<Page<Team>>(
-        `/api/projects/catalog/teams?${query({ organization_id: org, limit: 100 })}`,
-        { signal: c.signal },
+      allPages<Team>(
+        (after) =>
+          api<Page<Team>>(
+            `/api/projects/catalog/teams?${query({ organization_id: org, limit: 100, after })}`,
+            { signal: c.signal },
+          ),
+        c.signal,
       ),
-      api<Page<ProjectStatus>>(
-        `/api/projects/catalog/project-statuses?${query({ organization_id: org, limit: 100 })}`,
-        { signal: c.signal },
+      allPages<ProjectStatus>(
+        (after) =>
+          api<Page<ProjectStatus>>(
+            `/api/projects/catalog/project-statuses?${query({ organization_id: org, limit: 100, after })}`,
+            { signal: c.signal },
+          ),
+        c.signal,
       ),
     ])
-      .then(([teams, statuses]) => setCatalog({ teams: teams.items, statuses: statuses.items }))
+      .then(([teams, statuses]) => {
+        if (!c.signal.aborted) setCatalog({ teams, statuses });
+      })
       .catch((e) => {
         if (!c.signal.aborted) setError(e);
       });
     return () => c.abort();
-  }, [api, org, open]);
+  }, [api, org, open, catalogAttempt]);
   async function submit(form: HTMLFormElement) {
-    if (saving) return;
-    setSaving(true);
+    if (submitting.current) return;
     setError(undefined);
     const values = Object.fromEntries(new FormData(form));
+    values.name = String(values.name || "").trim();
+    if (!values.name) {
+      setError(new Error("Enter a project name."));
+      form.querySelector<HTMLInputElement>('[name="name"]')?.focus();
+      return;
+    }
+    if (values.start_date && values.target_date && values.target_date < values.start_date) {
+      setError(new Error("Target date must be on or after the start date."));
+      form.querySelector<HTMLInputElement>('[name="target_date"]')?.focus();
+      return;
+    }
+    submitting.current = true;
+    setSaving(true);
     const id = crypto.randomUUID();
     const fields = JSON.stringify(values);
     if (!pendingWrite.current || pendingWrite.current.fields !== fields)
@@ -323,6 +583,7 @@ function CreateProject({
     } catch (e) {
       setError(e as Error);
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   }
@@ -352,7 +613,7 @@ function CreateProject({
               }}
             >
               <Dialog.Body>
-                <div className="form-fields">
+                <fieldset disabled={saving} className="form-fields">
                   <TextField.Root style={{ maxWidth: "100%", minWidth: 0 }}>
                     <TextField.Label>Name</TextField.Label>
                     <TextField.Control name="name" required maxLength={160} />
@@ -388,12 +649,17 @@ function CreateProject({
                     </TextField.Root>
                   </div>
                   {error && <p role="alert">{error.message}</p>}
+                  {error && !catalog && (
+                    <Button variant="ghost" onClick={() => setCatalogAttempt((n) => n + 1)}>
+                      Retry teams and statuses
+                    </Button>
+                  )}
                   {catalog && (!catalog.teams.length || !catalog.statuses.length) && (
                     <p role="status">
                       Create a team and project status in your business App first.
                     </p>
                   )}
-                </div>
+                </fieldset>
               </Dialog.Body>
               <Dialog.Footer>
                 <Button variant="secondary" disabled={saving} onClick={() => onOpenChange(false)}>

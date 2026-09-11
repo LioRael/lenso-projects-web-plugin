@@ -2,7 +2,7 @@
 
 Releases are crate-first and use release-plz with crates.io Trusted Publishing. No long-lived crates.io token belongs in repository or environment secrets.
 
-1. Publish the pinned `lenso-capability-projects`, `lenso-capability-projects-collaboration`, and `lenso-capability-projects-admin` versions first. Until they exist in crates.io, Cargo cannot assemble this public package from registry dependencies; CI therefore checks the exact package source set with `cargo package --list`.
+1. Publish the pinned `lenso-capability-projects`, `lenso-capability-projects-collaboration`, and `lenso-capability-projects-admin` versions first. The pinned Organization Directory and Membership Admin versions must also exist. CI verifies both the package source set and a full `cargo package --locked` build using registry dependencies.
 2. Merge only after CI, repository-boundary, and public-package checks pass.
 3. Let the `release-plz-pr` job prepare the version PR.
 4. Merge the version PR.

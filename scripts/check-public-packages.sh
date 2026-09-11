@@ -17,6 +17,5 @@ if printf '%s\n' "$package_files" | rg -q '^\.gitkeep$'; then
   exit 1
 fi
 
-# `cargo package` becomes the release gate once the three Projects capability
-# crates referenced here are available in the registry. Before that upstream
-# release, `cargo package --list` is the strict source-set check that can pass.
+# Verify that the published source builds using registry dependencies alone.
+cargo package --locked --allow-dirty

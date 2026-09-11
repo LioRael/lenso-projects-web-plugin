@@ -18,6 +18,6 @@ rg -q 'lenso-capability-http-endpoint.*0\.3\.0' Cargo.toml
 rg -q 'lenso-auth-sdk.*0\.2\.3' Cargo.toml
 rg -q 'list_projects_with_context' src/lib.rs
 rg -q 'create_project_update_with_context' src/lib.rs
-rg -q 'list_workflow_states_with_context' src/lib.rs
+rg -q 'list_issue_workflow_states_with_context' src/lib.rs
 rg -q 'business crate does not self-register navigation' docs/plugin-card.md
 rg -q 'createWorkspace\(runtime\)' README.md src/workspace/workspace.js
