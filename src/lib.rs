@@ -72,6 +72,7 @@ pub struct ProjectsWebPlugin {
 #[endpoint]
 impl ProjectsWebPlugin {
     #[get("projects.web.session", "/api/projects/session")]
+    #[allow(clippy::unused_async)] // Endpoint extractors run in the async request pipeline.
     async fn session(
         &self,
         actor: AuthenticatedUser,
