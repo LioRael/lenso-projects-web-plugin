@@ -5,7 +5,7 @@ import { ContentState } from "@lenso/ui/content-state";
 import { IssuePage } from "./issue";
 import { Workspace, ProjectDetail } from "./workspace";
 import { Transport } from "./transport";
-import { ApiError } from "./api";
+import { ApiError, type TraceHandoff } from "./api";
 import "./workspace.css";
 type Runtime = {
   services: {
@@ -21,9 +21,10 @@ type Props = {
   agent?: {
     completedTurns: number;
     setPageContext: (context: { label: string; text: string } | null) => void;
+    requestDraft?: (draft: string) => void;
   };
   environment: { locale: string; theme: string };
-  location: { segments: readonly string[] };
+  location: { segments: readonly string[]; handoff?: { kind: string; payload: unknown } };
   navigation: {
     go: (segments: readonly string[]) => void;
     href: (segments: readonly string[]) => string;
@@ -43,6 +44,7 @@ const operations = [
   [/^\/api\/projects\/catalog\/project-statuses$/, "list_project_statuses", "GET"],
   [/^\/api\/projects\/catalog\/workflow-states$/, "list_workflow_states", "GET"],
   [/^\/api\/projects\/([^/]+)\/issues$/, "list_issues", "GET", "project_id"],
+  [/^\/api\/projects\/([^/]+)\/issues$/, "create_issue", "POST", "project_id"],
   [/^\/api\/projects\/([^/]+)$/, "get_project", "GET", "project_id"],
   [/^\/api\/issues\/([^/]+)\/activity$/, "list_activity", "GET", "issue_id"],
   [/^\/api\/issues\/([^/]+)$/, "get_issue", "GET", "issue_id"],
@@ -145,6 +147,10 @@ export function create(runtime: Runtime) {
         openProject: (org: string, id: string) =>
           props.navigation.go(["org", org, "projects", id, "overview"]),
         openWorkspace: (org: string) => props.navigation.go(["org", org]),
+        openIssue: (org: string, id: string, project?: string) =>
+          props.navigation.go(
+            project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
+          ),
         workspaceHref: (org: string) => props.navigation.href(["org", org]),
         projectHref: (org: string, id: string, view = "overview") =>
           props.navigation.href(["org", org, "projects", id, view]),
@@ -152,8 +158,10 @@ export function create(runtime: Runtime) {
           props.navigation.href(
             project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
           ),
+        requestAgentDraft: props.agent?.requestDraft,
+        traceHandoff: traceHandoff(props.location.handoff),
       }),
-      [service, props.signal, props.navigation, props.agent],
+      [service, props.signal, props.navigation, props.agent, props.location.handoff],
     );
     async function begin() {
       setBusy(true);
@@ -265,4 +273,21 @@ export function create(runtime: Runtime) {
     );
   }
   return { Page };
+}
+
+function traceHandoff(value: Props["location"]["handoff"]): TraceHandoff | undefined {
+  if (
+    value?.kind !== "lenso.observe.trace@1" ||
+    !value.payload ||
+    typeof value.payload !== "object"
+  )
+    return undefined;
+  const payload = value.payload as Partial<TraceHandoff>;
+  if (
+    payload.kind !== value.kind ||
+    typeof payload.source_id !== "string" ||
+    typeof payload.trace_id !== "string"
+  )
+    return undefined;
+  return payload as TraceHandoff;
 }
