@@ -11,7 +11,7 @@ import "@lenso/ui/styles.css";
 import "./layout.css";
 import "./workspace.css";
 import { IssuePage } from "./issue";
-import { Workspace } from "./workspace";
+import { Workspace, ProjectDetail } from "./workspace";
 
 const params = new URLSearchParams(location.search);
 const org = params.get("organization_id") || "";
@@ -35,7 +35,17 @@ function App() {
   return (
     <ThemeScope theme={theme === "system" ? systemTheme : theme}>
       <main className="work-surface projects-workspace">
-        {issue && org ? <IssuePage org={org} id={issue} /> : <Workspace org={org} />}
+        {issue && org ? (
+          <IssuePage org={org} id={issue} project={params.get("project") || undefined} />
+        ) : params.get("project") ? (
+          <ProjectDetail
+            org={org}
+            id={params.get("project")!}
+            view={params.get("view") || "overview"}
+          />
+        ) : (
+          <Workspace org={org} />
+        )}
       </main>
     </ThemeScope>
   );

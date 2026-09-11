@@ -111,3 +111,16 @@ The separate Agent business connection is not silently shared with this Workspac
 
 Real Console, business login, project creation and permission checks are exercised
 by the Agent repository's `scripts/projects-acceptance/console-browser.mjs`.
+
+### Workspace discovery (source integration)
+
+The Console entry lists the authenticated user's active memberships through
+`/api/projects/workspaces`; one workspace opens automatically, and **Switch
+workspace** returns to the selector. Organization IDs are not user input.
+
+This change requires Organization Directory descriptor 1.1.0 and its matching
+PostgreSQL provider, currently tested from source. Until that dependency is
+published, validate with `lenso-cargo test --config
+'patch.crates-io.lenso-capability-organization-directory.path="/absolute/path/to/organization/crates/lenso-capability-organization-directory"'`.
+The consuming App must bind the directory Port and allow its Projects Web
+instance as a directory caller. No Organization Admin permission is needed.
