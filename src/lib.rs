@@ -13,6 +13,8 @@ use lenso_capability_http_endpoint::{
     Json, Path, QueryParams, endpoint,
     response::{self, HeaderValue, StatusCode, header},
 };
+use lenso_capability_organization_directory as directory;
+use lenso_capability_organization_membership_admin as members;
 use lenso_capability_projects as projects;
 use lenso_capability_projects_admin as admin;
 use lenso_capability_projects_collaboration as collaboration;
@@ -39,10 +41,107 @@ pub struct ProjectsWebPlugin {
     projects: Port<projects::ProjectsClient>,
     collaboration: Port<collaboration::ProjectsCollaborationClient>,
     admin: Port<admin::ProjectsAdminClient>,
+    directory: Port<directory::OrganizationDirectoryClient>,
+    members: ManyPort<members::OrganizationMembershipAdminClient>,
 }
 
 #[endpoint]
 impl ProjectsWebPlugin {
+    #[get("projects.web.workspaces", "/api/projects/workspaces")]
+    async fn workspaces(
+        &self,
+        actor: AuthenticatedUser,
+        context: InvocationContext,
+        QueryParams(query): QueryParams<WorkspaceQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        json_result(
+            self.directory
+                .list_for_subject_with_context(
+                    context,
+                    directory::ListForSubjectRequest {
+                        subject: actor.subject,
+                        after: query.after,
+                        limit: query.limit.unwrap_or(50),
+                    },
+                )
+                .await,
+            StatusCode::OK,
+        )
+    }
+
+    #[get("projects.web.issues.assignee", "/api/issues/{issue_id}/assignee")]
+    async fn get_assignee(
+        &self,
+        _actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<IssuePath>,
+        QueryParams(query): QueryParams<OrganizationQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        json_result(
+            self.collaboration
+                .get_issue_assignee_with_context(
+                    context,
+                    collaboration::GetIssueAssigneeRequest {
+                        organization_id: query.organization_id,
+                        issue_id: path.issue_id,
+                    },
+                )
+                .await,
+            StatusCode::OK,
+        )
+    }
+    #[patch("projects.web.issues.assign", "/api/issues/{issue_id}/assignee")]
+    async fn set_assignee(
+        &self,
+        _actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<IssuePath>,
+        Json(request): Json<collaboration::SetIssueAssigneeRequest>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        if path.issue_id != request.issue_id {
+            return Ok(path_mismatch("issue_id"));
+        }
+        json_result(
+            self.collaboration
+                .set_issue_assignee_with_context(context, request)
+                .await,
+            StatusCode::OK,
+        )
+    }
+    #[get("projects.web.issues.assignees", "/api/issues/{issue_id}/assignees")]
+    async fn assignees(
+        &self,
+        actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<IssuePath>,
+        QueryParams(query): QueryParams<PageQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        let visible = self
+            .projects
+            .get_issue_with_context(
+                context.clone(),
+                projects::GetIssueRequest {
+                    organization_id: query.organization_id.clone(),
+                    issue_ref: path.issue_id,
+                },
+            )
+            .await;
+        if visible.is_err() {
+            return json_result(visible, StatusCode::OK);
+        }
+        let [reader] = &*self.members else {
+            return Ok(asset(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "application/json",
+                r#"{"detail":"The member directory is not connected."}"#,
+            ));
+        };
+        match reader.list_members_with_context(context, members::ListMembersRequest { organization_id: query.organization_id, subject: None, status: members::ListMembersRequestStatus::Active, cursor: query.after, limit: query.limit }).await {
+            Ok(page) => Ok(asset(StatusCode::OK,"application/json",&serde_json::to_string(&serde_json::json!({"items":page.members.iter().map(|m| serde_json::json!({"subject":m.subject,"name":if m.subject==actor.subject { "You" } else { &m.subject }})).collect::<Vec<_>>(),"next_cursor":page.next_cursor})).expect("members JSON"))),
+            Err(error) => json_result::<members::ListMembersResponse,_>(Err(error), StatusCode::OK),
+        }
+    }
+
     #[get("projects.web.page", "/projects")]
     async fn page(&self) -> Result<HandleResponse, EndpointHandleInvocationError> {
         std::future::ready(()).await;
@@ -484,8 +583,8 @@ impl ProjectsWebPlugin {
         QueryParams(query): QueryParams<TeamPageQuery>,
     ) -> Result<HandleResponse, EndpointHandleInvocationError> {
         json_result(
-            self.admin
-                .list_workflow_states_with_context(context, query.into_workflow_request())
+            self.projects
+                .list_issue_workflow_states_with_context(context, query.into_workflow_request())
                 .await,
             StatusCode::OK,
         )
@@ -538,7 +637,16 @@ impl ProjectsWebPlugin {
 }
 
 #[derive(Debug)]
-struct AuthenticatedUser;
+struct AuthenticatedUser {
+    subject: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkspaceQuery {
+    after: Option<String>,
+    limit: Option<i64>,
+}
 
 impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
     fn from_request<'a>(
@@ -587,12 +695,13 @@ impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
                 )
                 .into());
             }
+            let subject = assertion.subject().to_owned();
             *context = assertion.attach(context.clone()).map_err(|error| {
                 EndpointHandleInvocationError::Runtime(RuntimeFailure::Internal {
                     detail: format!("could not attach authenticated actor assertion: {error}"),
                 })
             })?;
-            Ok(Self)
+            Ok(Self { subject })
         })
     }
 }
@@ -925,8 +1034,8 @@ struct TeamPageQuery {
 }
 
 impl TeamPageQuery {
-    fn into_workflow_request(self) -> admin::ListWorkflowStatesRequest {
-        admin::ListWorkflowStatesRequest {
+    fn into_workflow_request(self) -> projects::ListIssueWorkflowStatesRequest {
+        projects::ListIssueWorkflowStatesRequest {
             after: self.after,
             limit: self.limit,
             organization_id: self.organization_id,
@@ -1080,8 +1189,10 @@ mod tests {
             required,
             vec![
                 ("lenso.auth@1", "1.0.0", "one"),
+                ("lenso.organization-directory@1", "1.1.0", "one"),
+                ("lenso.organization-membership-admin@1", "1.1.0", "many"),
                 ("lenso.projects-admin@1", "1.0.0", "one"),
-                ("lenso.projects-collaboration@1", "1.0.0", "one"),
+                ("lenso.projects-collaboration@1", "1.1.0", "one"),
                 ("lenso.projects@1", "1.1.0", "one"),
             ]
         );
@@ -1121,5 +1232,28 @@ mod tests {
 
 impl_web_error!(
     projects::ProjectsListActivityInvocationError,
+    projects::CAPABILITY_ID
+);
+
+impl_web_error!(
+    directory::OrganizationDirectoryListForSubjectInvocationError,
+    directory::CAPABILITY_ID
+);
+
+impl_web_error!(
+    collaboration::ProjectsCollaborationGetIssueAssigneeInvocationError,
+    collaboration::CAPABILITY_ID
+);
+impl_web_error!(
+    collaboration::ProjectsCollaborationSetIssueAssigneeInvocationError,
+    collaboration::CAPABILITY_ID
+);
+impl_web_error!(
+    members::OrganizationMembershipAdminListMembersInvocationError,
+    members::CAPABILITY_ID
+);
+
+impl_web_error!(
+    projects::ProjectsListIssueWorkflowStatesInvocationError,
     projects::CAPABILITY_ID
 );

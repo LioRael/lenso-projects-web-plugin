@@ -1,11 +1,13 @@
+import { IssueAssignee } from "./issue-assignee";
+import { IssueEditor } from "./issue-editor";
+import { WorkspaceHeader } from "./workspace-header";
 import { useProjects } from "./transport";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@lenso/ui/button";
 import { IconButton } from "@lenso/ui/icon-button";
-import { PageHeader } from "@lenso/ui/page-header";
 import { Breadcrumb } from "@lenso/ui/breadcrumb";
 import { StatusMarker } from "@lenso/ui/status-marker";
-import { RefreshCw, Circle, History, Sparkles } from "lucide-react";
+import { RefreshCw, Circle, History, PanelRight, Sparkles } from "lucide-react";
 import {
   displayName,
   query,
@@ -17,12 +19,22 @@ import {
 } from "./api";
 import { Details, Empty, Feedback, Properties } from "./shared";
 
-export function IssuePage({ org, id }: { org: string; id: string }) {
-  const { api, requestAgentDraft, workspaceHref } = useProjects();
+export function IssuePage({ org, id, project }: { org: string; id: string; project?: string }) {
+  const {
+    api,
+    workspaceHref,
+    projectHref,
+    setPageContext,
+    completedAgentTurns,
+    requestAgentDraft,
+  } = useProjects();
+  const [showProperties, setShowProperties] = useState(true);
   const [issue, setIssue] = useState<Issue>();
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
   const [stateName, setStateName] = useState("Loading…");
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -44,12 +56,36 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
       });
     return () => controller.abort();
   }, [api, org, id, refresh]);
+  useEffect(() => {
+    const refreshVisible = () => {
+      if (!document.hidden && !editing) setRefresh((n) => n + 1);
+    };
+    window.addEventListener("focus", refreshVisible);
+    const timer = window.setInterval(refreshVisible, 15000);
+    return () => {
+      window.removeEventListener("focus", refreshVisible);
+      window.clearInterval(timer);
+    };
+  }, [editing]);
+  useEffect(() => {
+    if (!issue || error) {
+      setPageContext(null);
+      return;
+    }
+    setPageContext({
+      label: `${issue.identifier} · ${issue.title}`,
+      text: location.href,
+    });
+    return () => setPageContext(null);
+  }, [issue, error, org, id, setPageContext]);
+  useEffect(() => {
+    if (completedAgentTurns && !editing) setRefresh((n) => n + 1);
+  }, [completedAgentTurns, editing]);
   const teamId = issue?.team_id;
   const workflowStateId = issue?.workflow_state_id;
   useEffect(() => {
     if (!teamId) return;
     const controller = new AbortController();
-    setStateName("Loading…");
     api<Page<WorkflowState>>(
       `/api/projects/catalog/workflow-states?${query({ organization_id: org, team_id: teamId, limit: 100 })}`,
       { signal: controller.signal },
@@ -67,27 +103,10 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
   }, [api, org, teamId, workflowStateId, refresh]);
   return (
     <>
-      <PageHeader.Root variant="simple">
-        <PageHeader.Row style={{ minHeight: 44 }}>
-          <Breadcrumb.Root aria-label="Issue location">
-            <Breadcrumb.List>
-              <Breadcrumb.Item>
-                <Breadcrumb.Link
-                  nativeButton={false}
-                  role="link"
-                  render={<a href={workspaceHref(org)} />}
-                >
-                  Projects
-                </Breadcrumb.Link>
-              </Breadcrumb.Item>
-              <Breadcrumb.Separator />
-              <Breadcrumb.Item>
-                <Breadcrumb.Page>{issue?.identifier || "Issue"}</Breadcrumb.Page>
-              </Breadcrumb.Item>
-            </Breadcrumb.List>
-          </Breadcrumb.Root>
-          <PageHeader.Spacer />
-          <PageHeader.Actions>
+      <WorkspaceHeader
+        org={org}
+        actions={
+          <>
             {issue && requestAgentDraft ? (
               <Button
                 size="compact"
@@ -98,29 +117,96 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
                 Hand to Agent
               </Button>
             ) : null}
+            {issue && !editing && (
+              <Button
+                size="compact"
+                variant="ghost"
+                onClick={() => {
+                  setEditing(true);
+                  setSaved(false);
+                }}
+              >
+                Edit issue
+              </Button>
+            )}
+            <IconButton
+              aria-label="Toggle issue properties"
+              aria-pressed={showProperties}
+              variant="ghost"
+              size="compact"
+              onClick={() => setShowProperties((v) => !v)}
+            >
+              <PanelRight />
+            </IconButton>
             <IconButton
               aria-label="Refresh issue"
-              disabled={busy}
+              disabled={busy || editing}
               onClick={() => setRefresh((n) => n + 1)}
               variant="ghost"
               size="compact"
             >
               <RefreshCw />
             </IconButton>
-          </PageHeader.Actions>
-        </PageHeader.Row>
-      </PageHeader.Root>
+          </>
+        }
+      >
+        <Breadcrumb.Root aria-label="Issue location">
+          <Breadcrumb.List>
+            <Breadcrumb.Item>
+              <Breadcrumb.Link
+                nativeButton={false}
+                role="link"
+                render={<a href={workspaceHref(org)} />}
+              >
+                Projects
+              </Breadcrumb.Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Separator />
+            <Breadcrumb.Item>
+              <Breadcrumb.Page>{issue?.identifier || "Issue"}</Breadcrumb.Page>
+            </Breadcrumb.Item>
+          </Breadcrumb.List>
+        </Breadcrumb.Root>
+        {project && (
+          <a className="back-to-project" href={projectHref(org, project, "issues")}>
+            Back to project
+          </a>
+        )}
+      </WorkspaceHeader>
       {error ? (
         <Feedback error={error} retry={() => setRefresh((n) => n + 1)} />
       ) : !issue ? (
         <Empty title="Loading issue…" />
       ) : (
-        <div className="issue-layout" aria-busy={busy}>
+        <div
+          className={`issue-layout${showProperties ? "" : " properties-hidden"}`}
+          aria-busy={busy}
+        >
           <article className="issue-content">
-            <h1>{issue.title}</h1>
-            <div className={`issue-description${issue.description ? "" : " muted"}`}>
-              {issue.description || "No description."}
-            </div>
+            {editing ? (
+              <IssueEditor
+                issue={issue}
+                onCancel={() => setEditing(false)}
+                onSaved={(value) => {
+                  setIssue(value);
+                  setEditing(false);
+                  setSaved(true);
+                  setRefresh((n) => n + 1);
+                }}
+              />
+            ) : (
+              <>
+                <h1>{issue.title}</h1>
+                <div className={`issue-description${issue.description ? "" : " muted"}`}>
+                  {issue.description || "No description."}
+                </div>
+              </>
+            )}
+            {saved && (
+              <p role="status" className="muted">
+                Changes saved
+              </p>
+            )}
             <ActivityList
               key={`${org}:${id}:${issue.revision}`}
               org={org}
@@ -128,7 +214,11 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
               refresh={refresh}
             />
           </article>
-          <aside className="issue-properties" aria-label="Issue properties">
+          <aside
+            hidden={!showProperties}
+            className="issue-properties"
+            aria-label="Issue properties"
+          >
             <h2>Properties</h2>
             <Properties
               rows={[
@@ -150,6 +240,11 @@ export function IssuePage({ org, id }: { org: string; id: string }) {
                   </time>,
                 ],
               ]}
+            />
+            <IssueAssignee
+              issue={issue}
+              disabled={editing}
+              onSaved={() => setRefresh((n) => n + 1)}
             />
             <div className="record-details">
               <Details title="Record details">
@@ -174,6 +269,7 @@ export function issueAgentDraft(org: string, issue: Issue) {
 const names: Record<string, string> = {
   create_issue: "Issue created",
   update_issue: "Issue updated",
+  set_issue_assignee: "Assignee changed",
   move_issue: "Issue moved",
   archive_issue: "Issue archived",
 };

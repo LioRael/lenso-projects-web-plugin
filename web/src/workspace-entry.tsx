@@ -3,7 +3,7 @@ import { ThemeScope } from "@lenso/ui/theme-scope";
 import { Button } from "@lenso/ui/button";
 import { ContentState } from "@lenso/ui/content-state";
 import { IssuePage } from "./issue";
-import { Workspace } from "./workspace";
+import { Workspace, ProjectDetail } from "./workspace";
 import { Transport } from "./transport";
 import { ApiError, type TraceHandoff } from "./api";
 import "./workspace.css";
@@ -18,17 +18,26 @@ type Runtime = {
   };
 };
 type Props = {
+  agent?: {
+    completedTurns: number;
+    setPageContext: (context: { label: string; text: string } | null) => void;
+    requestDraft?: (draft: string) => void;
+  };
   environment: { locale: string; theme: string };
   location: { segments: readonly string[]; handoff?: { kind: string; payload: unknown } };
   navigation: {
     go: (segments: readonly string[]) => void;
     href: (segments: readonly string[]) => string;
   };
-  agent?: { requestDraft: (draft: string) => void };
   signal: AbortSignal;
 };
 type Connection = { connected: boolean; label: string; subject?: string };
 const operations = [
+  [/^\/api\/issues\/([^/]+)\/assignee$/, "get_assignee", "GET", "issue_id"],
+  [/^\/api\/issues\/([^/]+)\/assignee$/, "set_assignee", "PATCH", "issue_id"],
+  [/^\/api\/issues\/([^/]+)\/assignees$/, "list_assignees", "GET", "issue_id"],
+  [/^\/api\/issues\/([^/]+)$/, "update_issue", "PATCH", "issue_id"],
+  [/^\/api\/projects\/workspaces$/, "list_workspaces", "GET"],
   [/^\/api\/projects$/, "list_projects", "GET"],
   [/^\/api\/projects$/, "create_project", "POST"],
   [/^\/api\/projects\/catalog\/teams$/, "list_teams", "GET"],
@@ -98,6 +107,9 @@ export function create(runtime: Runtime) {
     }, [service, attempt, props.signal]);
     const transport = useMemo(
       () => ({
+        completedAgentTurns: props.agent?.completedTurns || 0,
+        setPageContext: (context: { label: string; text: string } | null) =>
+          props.agent?.setPageContext(context),
         api: async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
           const url = new URL(path, "http://workspace.invalid");
           const method = options.method || "GET";
@@ -132,10 +144,20 @@ export function create(runtime: Runtime) {
             );
           return result.body;
         },
+        openProject: (org: string, id: string) =>
+          props.navigation.go(["org", org, "projects", id, "overview"]),
         openWorkspace: (org: string) => props.navigation.go(["org", org]),
-        openIssue: (org: string, id: string) => props.navigation.go(["org", org, "issues", id]),
+        openIssue: (org: string, id: string, project?: string) =>
+          props.navigation.go(
+            project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
+          ),
         workspaceHref: (org: string) => props.navigation.href(["org", org]),
-        issueHref: (org: string, id: string) => props.navigation.href(["org", org, "issues", id]),
+        projectHref: (org: string, id: string, view = "overview") =>
+          props.navigation.href(["org", org, "projects", id, view]),
+        issueHref: (org: string, id: string, project?: string) =>
+          props.navigation.href(
+            project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
+          ),
         requestAgentDraft: props.agent?.requestDraft,
         traceHandoff: traceHandoff(props.location.handoff),
       }),
@@ -158,7 +180,13 @@ export function create(runtime: Runtime) {
     }
     const segments = props.location.segments;
     const org = segments[0] === "org" ? segments[1] || "" : "";
-    const issue = segments[2] === "issues" ? segments[3] : undefined;
+    const project = segments[2] === "projects" ? segments[3] : undefined;
+    const issue =
+      segments[2] === "issues"
+        ? segments[3]
+        : project && segments[4] === "issues"
+          ? segments[5]
+          : undefined;
     return (
       <ThemeScope theme={props.environment.theme === "dark" ? "dark" : "light"}>
         <div
@@ -226,7 +254,18 @@ export function create(runtime: Runtime) {
             </ContentState.Root>
           ) : (
             <Transport.Provider value={transport}>
-              {issue ? <IssuePage org={org} id={issue} /> : <Workspace org={org} />}
+              {issue ? (
+                <IssuePage key={`${org}:${issue}`} org={org} id={issue} project={project} />
+              ) : project ? (
+                <ProjectDetail
+                  key={`${org}:${project}`}
+                  org={org}
+                  id={project}
+                  view={segments[4]}
+                />
+              ) : (
+                <Workspace key={org} org={org} />
+              )}
             </Transport.Provider>
           )}
         </div>

@@ -1,6 +1,6 @@
 [package]
 name = "lenso-projects-web-plugin"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -13,6 +13,8 @@ plugin-id = "lenso.projects.web"
 root-slot = "web"
 
 [dependencies]
+lenso-capability-organization-membership-admin = "0.3.0"
+lenso-capability-organization-directory = "0.3.0"
 futures = "0.3"
 lenso = { version = "0.5.17" }
 lenso-auth-sdk = { version = "0.2.3" }
@@ -20,7 +22,7 @@ lenso-capability-auth = { version = "0.2.0" }
 lenso-capability-http-endpoint = { version = "0.3.0" }
 lenso-capability-projects = { version = "0.2.0" }
 lenso-capability-projects-admin = { version = "0.2.0" }
-lenso-capability-projects-collaboration = { version = "0.2.0" }
+lenso-capability-projects-collaboration = { version = "0.3.0" }
 lenso-kernel = { version = "0.3.6" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

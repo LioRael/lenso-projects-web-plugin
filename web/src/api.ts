@@ -49,6 +49,10 @@ export interface Issue {
   workflow_state_id: string;
   revision: string | number;
   updated_at: string;
+  label_ids?: string[];
+  cycle_id?: string | null;
+  milestone_id?: string | null;
+  parent_issue_id?: string | null;
 }
 export interface Activity {
   activity_id?: string;
@@ -58,6 +62,7 @@ export interface Activity {
   actor_subject: string;
 }
 export interface WorkflowState {
+  archived?: boolean;
   state_id: string;
   name: string;
 }
@@ -90,10 +95,41 @@ export interface ProjectStatus {
   status_id: string;
   name: string;
 }
-export const issueHref = (org: string, id: string) =>
-  `/projects?${query({ organization_id: org, issue: id })}`;
+export const issueHref = (org: string, id: string, project?: string) =>
+  `/projects?${query({ organization_id: org, issue: id, project })}`;
 export const workspaceHref = (org: string) => `/projects?${query({ organization_id: org })}`;
 export const shortDate = (date: string) =>
-  new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  new Date(/^\d{4}-\d{2}-\d{2}$/.test(date) ? `${date}T12:00:00` : date).toLocaleDateString(
+    undefined,
+    { month: "short", day: "numeric" },
+  );
 export const displayName = (name: string) =>
   name.replaceAll("_", " ").replace(/^./, (c) => c.toUpperCase());
+
+export const projectHref = (org: string, id: string, view = "overview") =>
+  `/projects?${query({ organization_id: org, project: id, view })}`;
+
+export function canKeepResults(error: Error | undefined) {
+  return !error || !(error instanceof ApiError) || error.status >= 500;
+}
+
+export async function allPages<T>(
+  fetchPage: (after?: string) => Promise<Page<T>>,
+  signal: AbortSignal,
+): Promise<T[]> {
+  const items: T[] = [];
+  const seen = new Set<string>();
+  let after: string | undefined;
+  do {
+    signal.throwIfAborted();
+    const page = await fetchPage(after);
+    signal.throwIfAborted();
+    items.push(...page.items);
+    after = page.next_cursor || undefined;
+    if (after) {
+      if (seen.has(after)) throw new Error("The list could not be fully loaded. Please retry.");
+      seen.add(after);
+    }
+  } while (after);
+  return items;
+}

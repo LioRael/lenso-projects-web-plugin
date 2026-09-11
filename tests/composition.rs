@@ -15,6 +15,7 @@ use lenso_capability_http_endpoint as endpoint;
 use lenso_capability_http_endpoint::{
     HandleRequest, HandleRequestCredential, HandleRequestHeadersItem,
 };
+use lenso_capability_organization_directory as directory;
 use lenso_capability_projects as projects;
 use lenso_capability_projects_admin as admin;
 use lenso_capability_projects_collaboration as collaboration;
@@ -343,6 +344,14 @@ impl NativePluginFactory for DomainFactory {
                 operations: COLLABORATION_OPERATIONS,
             }) as Rc<dyn NativeRequestEndpoint>,
             Rc::new(PassiveEndpoint {
+                capability: directory::CAPABILITY_ID,
+                descriptor: directory::DESCRIPTOR_VERSION,
+                operations: &[
+                    directory::GET_ORGANIZATION_OPERATION,
+                    directory::LIST_FOR_SUBJECT_OPERATION,
+                ],
+            }) as Rc<dyn NativeRequestEndpoint>,
+            Rc::new(PassiveEndpoint {
                 capability: admin::CAPABILITY_ID,
                 descriptor: admin::DESCRIPTOR_VERSION,
                 operations: ADMIN_OPERATIONS,
@@ -477,6 +486,10 @@ fn web_plan() -> ResolvedAppPlan {
         CapabilityRequirementPlan::one(endpoint::CAPABILITY_ID, endpoint::DESCRIPTOR_VERSION),
     );
     let web = PluginInstancePlan::new("projects-web", PACKAGE_ID)
+        .with_requirement(CapabilityRequirementPlan::one(
+            directory::CAPABILITY_ID,
+            directory::DESCRIPTOR_VERSION,
+        ))
         .with_capability(CapabilityEndpointPlan::new(
             endpoint::CAPABILITY_ID,
             endpoint::DESCRIPTOR_VERSION,
@@ -508,6 +521,12 @@ fn web_plan() -> ResolvedAppPlan {
     AppComposition::new(
         vec![caller, web, auth_provider, domain],
         vec![
+            CapabilityBinding::new(
+                "projects-web",
+                directory::CAPABILITY_ID,
+                directory::DESCRIPTOR_VERSION,
+                "domain",
+            ),
             CapabilityBinding::new(
                 "caller",
                 endpoint::CAPABILITY_ID,
@@ -563,6 +582,14 @@ fn domain_only_plan() -> ResolvedAppPlan {
 
 fn domain_instance() -> PluginInstancePlan {
     PluginInstancePlan::new("domain", DOMAIN_PACKAGE)
+        .with_capability(CapabilityEndpointPlan::new(
+            directory::CAPABILITY_ID,
+            directory::DESCRIPTOR_VERSION,
+            [
+                directory::GET_ORGANIZATION_OPERATION,
+                directory::LIST_FOR_SUBJECT_OPERATION,
+            ],
+        ))
         .with_capability(CapabilityEndpointPlan::new(
             projects::CAPABILITY_ID,
             projects::DESCRIPTOR_VERSION,

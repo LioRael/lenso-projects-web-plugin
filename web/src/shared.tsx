@@ -88,3 +88,17 @@ export function Empty({ title, description }: { title: string; description?: str
     </ContentState.Root>
   );
 }
+
+export function RefreshNotice({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <div className="refresh-notice" role="alert">
+      <span>
+        Could not update. Showing the previous results.{" "}
+        <span className="muted">{error.message}</span>
+      </span>
+      <Button size="compact" variant="ghost" onClick={retry}>
+        Retry
+      </Button>
+    </div>
+  );
+}
