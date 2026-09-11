@@ -13,6 +13,7 @@ plugin-id = "lenso.projects.web"
 root-slot = "web"
 
 [dependencies]
+time = "0.3"
 lenso-capability-organization-membership-admin = "0.3.0"
 lenso-capability-organization-directory = "0.3.0"
 futures = "0.3"

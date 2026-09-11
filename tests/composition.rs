@@ -482,10 +482,15 @@ impl NativeRequestEndpoint for PassiveEndpoint {
 }
 
 fn web_plan() -> ResolvedAppPlan {
+    web_plan_with_config("{}")
+}
+
+fn web_plan_with_config(config: &str) -> ResolvedAppPlan {
     let caller = PluginInstancePlan::new("caller", CALLER_PACKAGE).with_requirement(
         CapabilityRequirementPlan::one(endpoint::CAPABILITY_ID, endpoint::DESCRIPTOR_VERSION),
     );
     let web = PluginInstancePlan::new("projects-web", PACKAGE_ID)
+        .with_configuration(config)
         .with_requirement(CapabilityRequirementPlan::one(
             directory::CAPABILITY_ID,
             directory::DESCRIPTOR_VERSION,
@@ -625,4 +630,32 @@ fn list_request(token: &str) -> HandleRequest {
         request_id: "request-1".to_owned(),
         route_id: "projects.web.projects.list".to_owned(),
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn native_context_requires_valid_signature_audience_and_lifetime() {
+    tokio::task::LocalSet::new().run_until(async {
+        lenso_projects_web_plugin::link();
+        let now = OffsetDateTime::now_utc();
+        let issuer = ActorAssertionIssuer::new("test.auth", b"projects-web-test-key");
+        let other = ActorAssertionIssuer::new("test.auth", b"different-signing-authority");
+        let observed = Rc::new(Cell::new(false));
+        let config = serde_json::json!({"invocation_auth_issuer":"test.auth","invocation_auth_public_key":issuer.public_key_base64()}).to_string();
+        let app = Kernel::start_native(web_plan_with_config(&config), TokioDriver::new(), NativePluginRegistry::new().with_linked_factories().with_factory(EmptyFactory).with_factory(TestAuthFactory {issuer:issuer.clone(),now}).with_factory(DomainFactory {verifier:issuer.verifier(),now,observed_actor:observed.clone(),mode:ProjectsMode::Success,require_actor:true})).await.unwrap();
+        for (signer, include_audience, expired, status) in [(&issuer,true,false,200),(&other,true,false,401),(&issuer,false,false,401),(&issuer,true,true,401)] {
+            observed.set(false);
+            let mut audiences = vec![audience(projects::CAPABILITY_ID, projects::LIST_PROJECTS_OPERATION)];
+            if include_audience { audiences.push(audience(endpoint::CAPABILITY_ID, endpoint::HANDLE_OPERATION)); }
+            let expiry = if expired {now - Duration::seconds(1)} else {now + Duration::minutes(1)};
+            let assertion = signer.issue("user_1", "user", "password", audiences, Validity::new(now-Duration::minutes(1), expiry).unwrap(), BTreeMap::new());
+            let context = assertion.attach(InvocationContext::new(1, None, lenso_kernel::CancellationToken::new())).unwrap();
+            let mut request = list_request("unused"); request.credential = None;
+            let response = app.handle::<endpoint::EndpointHandle>("caller").unwrap().invoke_with_context(endpoint::HANDLE_OPERATION, context, request).await.unwrap().unwrap();
+            assert_eq!(response.status, status);
+            assert_eq!(observed.get(), status == 200);
+        }
+        let mut request = list_request("unused"); request.credential = None;
+        assert_eq!(app.invoke::<endpoint::EndpointHandle>("caller",endpoint::HANDLE_OPERATION,request).await.unwrap().unwrap().status,401);
+        assert_eq!(app.shutdown(StdDuration::from_secs(1)).await, ShutdownOutcome::Clean);
+    }).await;
 }
