@@ -31,7 +31,12 @@ type Props = {
   };
   signal: AbortSignal;
 };
-type Connection = { connected: boolean; label: string; subject?: string };
+type Connection = {
+  mode?: "console" | "external";
+  connected: boolean;
+  label: string;
+  subject?: string;
+};
 const operations = [
   [/^\/api\/issues\/([^/]+)\/assignee$/, "get_assignee", "GET", "issue_id"],
   [/^\/api\/issues\/([^/]+)\/assignee$/, "set_assignee", "PATCH", "issue_id"],
@@ -133,14 +138,19 @@ export function create(runtime: Runtime) {
           );
           if (result.status === 401) {
             setConnection((c) => (c ? { ...c, connected: false } : undefined));
-            throw new ApiError(401, "Reconnect your business App to continue.");
+            throw new ApiError(
+              401,
+              connection?.mode === "console"
+                ? "Projects could not verify your Console session."
+                : "Reconnect your business App to continue.",
+            );
           }
           if (result.status >= 400)
             throw new ApiError(
               result.status,
               result.status === 403
                 ? "Your account does not have access to this record."
-                : "The business App could not complete this request. Refresh the record before trying again.",
+                : "Projects could not complete this request. Refresh the record before trying again.",
             );
           return result.body;
         },
@@ -222,20 +232,47 @@ export function create(runtime: Runtime) {
           {!connection?.connected ? (
             <ContentState.Root>
               <ContentState.Title as="h1">
-                {error
-                  ? "Unable to connect Projects"
-                  : connection
-                    ? "Connect Projects"
-                    : "Loading Projects…"}
+                {connection?.mode === "console"
+                  ? "Projects is unavailable"
+                  : error
+                    ? "Unable to connect Projects"
+                    : connection
+                      ? "Connect Projects"
+                      : "Loading Projects…"}
               </ContentState.Title>
               <ContentState.Description>
-                {error ||
-                  (connection
-                    ? `Sign in to ${connection.label} to open your projects and issues.`
-                    : "Checking your business account.")}
+                {connection?.mode === "console"
+                  ? "Projects could not verify your Console session. Contact your administrator if retrying does not help."
+                  : error ||
+                    (connection
+                      ? `Sign in to ${connection.label} to open your projects and issues.`
+                      : "Checking your business account.")}
               </ContentState.Description>
               <ContentState.Actions>
-                {authorization ? (
+                {connection?.mode === "console" ? (
+                  <Button
+                    loading={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        setConnection(
+                          await service.invoke<object, Connection>(
+                            "projects",
+                            "connection_status",
+                            {},
+                            { signal: props.signal },
+                          ),
+                        );
+                      } catch (e) {
+                        setError((e as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
+                ) : authorization ? (
                   <Button
                     nativeButton={false}
                     role="link"
