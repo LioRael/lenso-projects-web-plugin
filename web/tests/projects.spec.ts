@@ -16,6 +16,8 @@ const issue = {
 };
 const project = {
   project_id: "project-1",
+  lead_team_id: "team-1",
+  team_ids: ["team-1"],
   name: "Account connections",
   summary: "Connect once and continue working in your business App.",
   status_id: "active",
@@ -37,7 +39,9 @@ async function fixture(
       if (options.status) return route.fulfill({ status: options.status, json: {} });
       if (route.request().method() === "POST") {
         writes.push(route.request().postDataJSON());
-        return route.fulfill({ json: {} });
+        return route.fulfill({
+          json: path.endsWith("/issues") ? issue : {},
+        });
       }
       if (path.endsWith("/activity")) {
         if (options.activityError && !activityFailed) {
@@ -155,6 +159,29 @@ test("workspace navigation, actual shared dialog and select, project creation pa
     lead_team_id: "team-1",
     status_id: "active",
     team_ids: ["team-1"],
+  });
+  expect(writes[0]).not.toHaveProperty("actor");
+  expect(errors).toEqual([]);
+});
+test("creates an issue with the owner contract and opens the created record", async ({ page }) => {
+  const { errors, writes } = await fixture(page);
+  await page.goto(`${origin}/projects?organization_id=org-1`);
+  await page.getByRole("button", { name: "New issue", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Investigate trace");
+  await page.getByRole("textbox", { name: "Description" }).fill("Trace ID: trace-1");
+  await page.getByRole("button", { name: "Create issue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: issue.title })).toBeVisible();
+  expect(writes).toHaveLength(1);
+  expect(writes[0]).toMatchObject({
+    organization_id: "org-1",
+    project_id: "project-1",
+    team_id: "team-1",
+    title: "Investigate trace",
+    description: "Trace ID: trace-1",
+    priority: "none",
+    workflow_state_id: "done",
+    label_ids: [],
   });
   expect(writes[0]).not.toHaveProperty("actor");
   expect(errors).toEqual([]);

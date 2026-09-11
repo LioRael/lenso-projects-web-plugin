@@ -7,12 +7,21 @@ import { TextField } from "@lenso/ui/text-field";
 import { TextArea } from "@lenso/ui/text-area";
 import { Select } from "@lenso/ui/select";
 import { Dialog } from "@lenso/ui/dialog";
-import { RefreshCw, Plus, Folder, ChevronDown } from "lucide-react";
-import { query, type Page, type Project, type Issue, type Team, type ProjectStatus } from "./api";
+import { RefreshCw, Plus, Folder, ChevronDown, Activity } from "lucide-react";
+import {
+  query,
+  type Page,
+  type Project,
+  type Issue,
+  type Team,
+  type ProjectStatus,
+  type TraceHandoff,
+  type WorkflowState,
+} from "./api";
 import { Empty, Feedback } from "./shared";
 
 export function Workspace({ org }: { org: string }) {
-  const { api, openWorkspace } = useProjects();
+  const { api, openWorkspace, traceHandoff } = useProjects();
   const [projects, setProjects] = useState<Project[]>([]);
   const [cursor, setCursor] = useState<string | null>();
   const [error, setError] = useState<Error>();
@@ -66,8 +75,12 @@ export function Workspace({ org }: { org: string }) {
     return (
       <div className="setup">
         <Empty
-          title="Open your workspace"
-          description="Use the organization from your business App. Your signed-in account determines access."
+          title={traceHandoff ? "Choose where to create the trace issue" : "Open your workspace"}
+          description={
+            traceHandoff
+              ? `Trace ${traceHandoff.trace_id.slice(0, 8)} is ready. Enter an organization, then choose a project.`
+              : "Use the organization from your business App. Your signed-in account determines access."
+          }
         />
         <form
           onSubmit={(e) => {
@@ -156,7 +169,12 @@ export function Workspace({ org }: { org: string }) {
           </section>
           <section className="project-content">
             {activeProject ? (
-              <ProjectDetail key={`${activeProject}:${refresh}`} org={org} id={activeProject} />
+              <ProjectDetail
+                key={`${activeProject}:${refresh}`}
+                org={org}
+                id={activeProject}
+                trace={traceHandoff}
+              />
             ) : null}
           </section>
         </div>
@@ -174,10 +192,11 @@ export function Workspace({ org }: { org: string }) {
     </>
   );
 }
-function ProjectDetail({ org, id }: { org: string; id: string }) {
-  const { api, issueHref } = useProjects();
+function ProjectDetail({ org, id, trace }: { org: string; id: string; trace?: TraceHandoff }) {
+  const { api, issueHref, openIssue } = useProjects();
   const [data, setData] = useState<{ project: Project; issues: Issue[] }>();
   const [error, setError] = useState<Error>();
+  const [creatingIssue, setCreatingIssue] = useState(false);
   useEffect(() => {
     const c = new AbortController();
     Promise.all([
@@ -199,7 +218,20 @@ function ProjectDetail({ org, id }: { org: string; id: string }) {
   if (!data) return <Empty title="Loading project…" />;
   return (
     <>
-      <h1>{data.project.name}</h1>
+      <div className="project-heading">
+        <div>
+          <h1>{data.project.name}</h1>
+          {trace ? (
+            <p className="trace-ready">
+              <Activity size={14} aria-hidden="true" /> Trace {trace.trace_id.slice(0, 8)} ready
+            </p>
+          ) : null}
+        </div>
+        <Button size="compact" onClick={() => setCreatingIssue(true)}>
+          <Plus size={14} aria-hidden="true" />
+          {trace ? "Create issue from trace" : "New issue"}
+        </Button>
+      </div>
       {data.project.summary && <p className="issue-description">{data.project.summary}</p>}
       <h2 className="queue-title">
         Issues <span className="muted">{data.issues.length}</span>
@@ -214,8 +246,199 @@ function ProjectDetail({ org, id }: { org: string; id: string }) {
       ) : (
         <p className="muted">No issues yet.</p>
       )}
+      <CreateIssue
+        org={org}
+        open={creatingIssue}
+        onOpenChange={setCreatingIssue}
+        project={data.project}
+        trace={trace}
+        onCreated={(issue) => openIssue(org, issue.issue_id)}
+      />
     </>
   );
+}
+
+function CreateIssue({
+  org,
+  open,
+  onOpenChange,
+  onCreated,
+  project,
+  trace,
+}: {
+  org: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (issue: Issue) => void;
+  project: Project;
+  trace?: TraceHandoff;
+}) {
+  const { api } = useProjects();
+  const pendingWrite = useRef<{ fields: string; payload: Record<string, unknown> } | null>(null);
+  const [states, setStates] = useState<WorkflowState[]>();
+  const [error, setError] = useState<Error>();
+  const [saving, setSaving] = useState(false);
+  const teamId = project.lead_team_id || project.team_ids?.[0] || "";
+  useEffect(() => {
+    if (!open || !teamId) return;
+    const controller = new AbortController();
+    setStates(undefined);
+    setError(undefined);
+    api<Page<WorkflowState>>(
+      `/api/projects/catalog/workflow-states?${query({ organization_id: org, team_id: teamId, limit: 100 })}`,
+      { signal: controller.signal },
+    )
+      .then((page) => {
+        if (!controller.signal.aborted) setStates(page.items);
+      })
+      .catch((value) => {
+        if (!controller.signal.aborted) setError(value as Error);
+      });
+    return () => controller.abort();
+  }, [api, open, org, teamId]);
+  async function submit(form: HTMLFormElement) {
+    if (saving) return;
+    setSaving(true);
+    setError(undefined);
+    const values = Object.fromEntries(new FormData(form));
+    const fields = JSON.stringify(values);
+    if (!pendingWrite.current || pendingWrite.current.fields !== fields)
+      pendingWrite.current = {
+        fields,
+        payload: {
+          idempotency_key: crypto.randomUUID(),
+          organization_id: org,
+          issue_id: crypto.randomUUID(),
+          project_id: project.project_id,
+          team_id: teamId,
+          title: values.title,
+          description: values.description || null,
+          priority: values.priority,
+          workflow_state_id: values.workflow_state_id || null,
+          cycle_id: null,
+          milestone_id: null,
+          parent_issue_id: null,
+          label_ids: [],
+        },
+      };
+    try {
+      const issue = await api<Issue>(
+        `/api/projects/${encodeURIComponent(project.project_id)}/issues`,
+        { method: "POST", body: JSON.stringify(pendingWrite.current.payload) },
+      );
+      pendingWrite.current = null;
+      onCreated(issue);
+    } catch (value) {
+      setError(value as Error);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <Dialog.Root open={open} onOpenChange={(value) => !saving && onOpenChange(value)}>
+      <Dialog.Portal>
+        <Dialog.Backdrop />
+        <Dialog.Viewport>
+          <Dialog.Popup>
+            <Dialog.Header>
+              <div>
+                <Dialog.Title>{trace ? "Create issue from trace" : "New issue"}</Dialog.Title>
+                <Dialog.Description>
+                  {trace
+                    ? `Review the safe context from trace ${trace.trace_id.slice(0, 8)} before creating the issue.`
+                    : `Add an issue to ${project.name}.`}
+                </Dialog.Description>
+              </div>
+              <Dialog.Close aria-label="Close" disabled={saving} />
+            </Dialog.Header>
+            <form
+              className="projects-workspace"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submit(event.currentTarget);
+              }}
+            >
+              <Dialog.Body>
+                <div className="form-fields">
+                  <TextField.Root style={{ maxWidth: "100%", minWidth: 0 }}>
+                    <TextField.Label>Title</TextField.Label>
+                    <TextField.Control
+                      name="title"
+                      required
+                      maxLength={240}
+                      defaultValue={traceTitle(trace)}
+                    />
+                  </TextField.Root>
+                  <TextArea.Root>
+                    <TextArea.Label>Description</TextArea.Label>
+                    <TextArea.Control
+                      name="description"
+                      rows={8}
+                      maxLength={16_000}
+                      defaultValue={traceDescription(trace)}
+                    />
+                  </TextArea.Root>
+                  <Choice
+                    label="Priority"
+                    name="priority"
+                    items={["none", "urgent", "high", "medium", "low"].map((value) => ({
+                      value,
+                      label: value[0].toUpperCase() + value.slice(1),
+                    }))}
+                  />
+                  {states ? (
+                    <Choice
+                      label="Workflow state"
+                      name="workflow_state_id"
+                      items={states.map((state) => ({ value: state.state_id, label: state.name }))}
+                    />
+                  ) : !error ? (
+                    <p className="muted">Loading workflow states…</p>
+                  ) : null}
+                  {error ? <p role="alert">{error.message}</p> : null}
+                  {!teamId ? <p role="status">This project has no lead team.</p> : null}
+                  {states && !states.length ? (
+                    <p role="status">Create a workflow state for this team first.</p>
+                  ) : null}
+                </div>
+              </Dialog.Body>
+              <Dialog.Footer>
+                <Button variant="secondary" disabled={saving} onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={saving} disabled={!teamId || !states?.length}>
+                  Create issue
+                </Button>
+              </Dialog.Footer>
+            </form>
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function traceTitle(trace?: TraceHandoff) {
+  if (!trace) return "";
+  const request = [trace.method, trace.route].filter(Boolean).join(" ");
+  return `${trace.status_code && trace.status_code >= 500 ? "Investigate failed" : "Investigate"} ${request || "request"}`;
+}
+
+function traceDescription(trace?: TraceHandoff) {
+  if (!trace) return "";
+  return [
+    "Created from an Observe trace.",
+    "",
+    `Source App: ${trace.source_id}`,
+    `Trace ID: ${trace.trace_id}`,
+    trace.method ? `Method: ${trace.method}` : null,
+    trace.route ? `Route: ${trace.route}` : null,
+    trace.status_code ? `Status: ${trace.status_code}` : null,
+    trace.duration_nano ? `Duration: ${trace.duration_nano} ns` : null,
+    trace.selected_span ? `Selected span: ${trace.selected_span}` : null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 }
 function Choice({
   label,

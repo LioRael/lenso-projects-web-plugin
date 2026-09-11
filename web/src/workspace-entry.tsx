@@ -5,7 +5,7 @@ import { ContentState } from "@lenso/ui/content-state";
 import { IssuePage } from "./issue";
 import { Workspace } from "./workspace";
 import { Transport } from "./transport";
-import { ApiError } from "./api";
+import { ApiError, type TraceHandoff } from "./api";
 import "./workspace.css";
 type Runtime = {
   services: {
@@ -19,11 +19,12 @@ type Runtime = {
 };
 type Props = {
   environment: { locale: string; theme: string };
-  location: { segments: readonly string[] };
+  location: { segments: readonly string[]; handoff?: { kind: string; payload: unknown } };
   navigation: {
     go: (segments: readonly string[]) => void;
     href: (segments: readonly string[]) => string;
   };
+  agent?: { requestDraft: (draft: string) => void };
   signal: AbortSignal;
 };
 type Connection = { connected: boolean; label: string; subject?: string };
@@ -34,6 +35,7 @@ const operations = [
   [/^\/api\/projects\/catalog\/project-statuses$/, "list_project_statuses", "GET"],
   [/^\/api\/projects\/catalog\/workflow-states$/, "list_workflow_states", "GET"],
   [/^\/api\/projects\/([^/]+)\/issues$/, "list_issues", "GET", "project_id"],
+  [/^\/api\/projects\/([^/]+)\/issues$/, "create_issue", "POST", "project_id"],
   [/^\/api\/projects\/([^/]+)$/, "get_project", "GET", "project_id"],
   [/^\/api\/issues\/([^/]+)\/activity$/, "list_activity", "GET", "issue_id"],
   [/^\/api\/issues\/([^/]+)$/, "get_issue", "GET", "issue_id"],
@@ -131,10 +133,13 @@ export function create(runtime: Runtime) {
           return result.body;
         },
         openWorkspace: (org: string) => props.navigation.go(["org", org]),
+        openIssue: (org: string, id: string) => props.navigation.go(["org", org, "issues", id]),
         workspaceHref: (org: string) => props.navigation.href(["org", org]),
         issueHref: (org: string, id: string) => props.navigation.href(["org", org, "issues", id]),
+        requestAgentDraft: props.agent?.requestDraft,
+        traceHandoff: traceHandoff(props.location.handoff),
       }),
-      [service, props.signal, props.navigation],
+      [service, props.signal, props.navigation, props.agent, props.location.handoff],
     );
     async function begin() {
       setBusy(true);
@@ -229,4 +234,21 @@ export function create(runtime: Runtime) {
     );
   }
   return { Page };
+}
+
+function traceHandoff(value: Props["location"]["handoff"]): TraceHandoff | undefined {
+  if (
+    value?.kind !== "lenso.observe.trace@1" ||
+    !value.payload ||
+    typeof value.payload !== "object"
+  )
+    return undefined;
+  const payload = value.payload as Partial<TraceHandoff>;
+  if (
+    payload.kind !== value.kind ||
+    typeof payload.source_id !== "string" ||
+    typeof payload.trace_id !== "string"
+  )
+    return undefined;
+  return payload as TraceHandoff;
 }

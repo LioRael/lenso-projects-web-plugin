@@ -65,10 +65,22 @@ export interface Project {
   project_id: string;
   name: string;
   summary?: string | null;
+  lead_team_id?: string;
+  team_ids?: string[];
   status_id: string;
   revision: string | number;
   target_date?: string | null;
   archived: boolean;
+}
+export interface TraceHandoff {
+  kind: "lenso.observe.trace@1";
+  source_id: string;
+  trace_id: string;
+  method?: string;
+  route?: string;
+  status_code?: number;
+  duration_nano?: string;
+  selected_span?: string;
 }
 export interface Team {
   team_id: string;
