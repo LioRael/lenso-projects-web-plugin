@@ -1,0 +1,35 @@
+AGENTS.md
+  s_32e3f4c758eed4::t_4d32a4d437b9bb 1-7
+src/assets/app.css
+  s_32e3f4c758eed4::t_e6290449f0fa37 1
+src/assets/app.js
+  s_32e3f4c758eed4::t_cb9af78a7a5b9f 10
+src/workspace/workspace.css
+  s_32e3f4c758eed4::t_b111c895a07253 1
+src/workspace/workspace.js
+  s_32e3f4c758eed4::t_106c9c60a48b39 6
+web/src/projects-navigation.tsx
+  s_32e3f4c758eed4::t_18bd8407cb15a9 82
+web/src/workspace-picker.tsx
+  s_32e3f4c758eed4::t_964f76ff66d6b6 236
+web/src/workspace.css
+  s_32e3f4c758eed4::t_43e00416d88287 329-331,695,699-700,772-776,781-786,801
+web/tests/projects.spec.ts
+  s_32e3f4c758eed4::t_7faa2438496025 421-423,441-473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c79b9276916d1cef3444bbce64c8f21bb14f4a2",
+  "prompts": {},
+  "sessions": {
+    "s_32e3f4c758eed4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a07871-c9ff-7bb3-a3cd-23c719471594",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "LioRael <leo@lenso.dev>"
+    }
+  }
+}
