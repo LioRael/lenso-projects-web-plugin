@@ -189,12 +189,15 @@ export function create(runtime: Runtime) {
         : project && segments[4] === "issues"
           ? segments[5]
           : undefined;
+    const setPageContext = useCallback(
+      (context: { label: string; text: string } | null) => props.agent?.setPageContext(context),
+      [props.agent?.setPageContext],
+    );
     const transport = useMemo(
       () => ({
         sidebarOwned: !!props.chrome?.Sidebar,
         completedAgentTurns: props.agent?.completedTurns || 0,
-        setPageContext: (context: { label: string; text: string } | null) =>
-          props.agent?.setPageContext(context),
+        setPageContext,
         api,
         openProject: (org: string, id: string) =>
           props.navigation.go(["org", org, "projects", id, "overview"]),
@@ -223,6 +226,7 @@ export function create(runtime: Runtime) {
       }),
       [
         api,
+        setPageContext,
         team,
         service,
         props.signal,
