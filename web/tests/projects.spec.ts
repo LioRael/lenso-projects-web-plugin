@@ -418,7 +418,9 @@ test("pending creation freezes its draft and cannot submit twice", async ({ page
   expect(count).toBe(1);
 });
 
-test("workspace pages share the Agent-sized header and right-aligned context", async ({ page }) => {
+test("workspace pages share the Agent-sized header and right-aligned context", async ({
+  page,
+}, testInfo) => {
   await fixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/projects?organization_id=org-1`);
@@ -436,6 +438,39 @@ test("workspace pages share the Agent-sized header and right-aligned context", a
   await page.getByRole("link", { name: /Account connections/ }).click();
   await expect(page.getByRole("heading", { name: "Account connections" })).toBeVisible();
   await verify();
+  const row = page.locator(".project-issues-link");
+  const heading = page.locator(".project-overview-section h2");
+  const text = row.locator("span").first();
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    await expect(page.locator('[data-slot="theme-scope"]')).toHaveAttribute("data-theme", theme);
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await heading.click();
+      await page.mouse.move(0, 0);
+      const before = await text.boundingBox();
+      await row.hover();
+      const label = await text.boundingBox();
+      const title = await heading.boundingBox();
+      const bounds = await row.boundingBox();
+      expect(Math.abs(label!.x - title!.x)).toBeLessThanOrEqual(1);
+      expect(label!.x - bounds!.x).toBeGreaterThanOrEqual(8);
+      expect(label!.x).toBe(before!.x);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+      await page.screenshot({ path: testInfo.outputPath(`overview-hover-${theme}-${width}.png`) });
+      expect(await row.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(
+        "rgba(0, 0, 0, 0)",
+      );
+      await page.mouse.move(0, 0);
+      await row.focus();
+      expect((await text.boundingBox())!.x).toBe(before!.x);
+      await expect(row).toBeFocused();
+      await page.screenshot({ path: testInfo.outputPath(`overview-focus-${theme}-${width}.png`) });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("link", { name: "Issues", exact: true }).click();
   await page.getByRole("link", { name: /PROJ-24/ }).click();
   await expect(page.locator("#issue-state")).toHaveText("Done");

@@ -233,7 +233,7 @@ export function WorkspaceSwitch({ org }: { org: string }) {
           minWidth: 0,
           fontSize: 13,
           fontWeight: 600,
-          paddingInline: 6,
+          paddingInline: "var(--projects-navigation-trigger-inset, 6px)",
         }}
       >
         <span className="workspace-switch-name">

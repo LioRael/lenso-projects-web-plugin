@@ -326,7 +326,9 @@
     align-items: center;
     gap: 12px;
     font-size: 13px;
-    padding: 10px 0;
+    padding: 10px 8px;
+    margin-inline: -8px;
+    border-radius: var(--radius-control);
   }
   .project-issues-link > span:first-child {
     flex: 1;
@@ -690,10 +692,12 @@
     padding-inline: 20px;
   }
   .projects-table-head {
+    height: auto;
     min-height: 28px;
     padding-block: 4px;
     background: transparent;
-    border-top: 0.5px solid var(--color-border-tertiary);
+    border-top: 0;
+    border-bottom: 0.5px solid var(--color-border-tertiary);
     font-size: 11px;
   }
   .project-table-row {
@@ -765,11 +769,21 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  :scope.projects-context-navigation {
+    --projects-navigation-inset: 12px;
+    --projects-navigation-label-inset: 10px;
+    --projects-navigation-trigger-inset: 6px;
+  }
   .projects-navigation-header {
     height: 44px;
     display: flex;
     align-items: center;
-    padding-inline: 6px 8px;
+    /* Keep text anchors equal while retaining the trigger hit area. */
+    padding-inline: calc(
+        var(--projects-navigation-inset) + var(--projects-navigation-label-inset) -
+          var(--projects-navigation-trigger-inset)
+      )
+      8px;
     gap: 2px;
   }
   .projects-navigation-header > [data-slot="icon-button"] {
@@ -784,7 +798,7 @@
     display: flex;
     align-items: center;
     height: 24px;
-    padding-inline: 10px 4px;
+    padding-inline: var(--projects-navigation-label-inset) 4px;
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.04em;

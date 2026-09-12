@@ -79,7 +79,7 @@ export function ProjectsNavigation({
           </IconButton>
         )}
       </div>
-      <Sidebar.Content style={{ padding: "0 12px 16px", gap: 6 }}>
+      <Sidebar.Content style={{ padding: "0 var(--projects-navigation-inset) 16px", gap: 6 }}>
         <section className="projects-navigation-section">
           <div className="projects-navigation-label">{zh ? "工作区" : "Workspace"}</div>
           {item(zh ? "项目" : "Projects", !team, <Box size={14} />, () => go())}
