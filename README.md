@@ -139,3 +139,16 @@ business permissions. Browser JSON and headers cannot provide this assertion.
 Workspace connection state. It does not create a session or grant access to
 records. Normal browser cookie/Bearer authentication retains the existing Auth
 binding and exact-Origin behavior.
+
+### Console navigation
+
+The optional `chrome.Sidebar` component supplied by Console renders plugin-owned
+navigation inside the existing context sidebar. Projects retains its Transport
+provider across that portal; Console owns placement and fallback restoration.
+Older hosts continue to use the page-header workspace menu.
+
+Workspace menus list authenticated memberships. Team navigation is scoped to the
+selected organization and loads the authorized team catalog. Team issue lists use
+`GET /api/teams/{team_id}/issues` with cursor pagination; the endpoint forwards the
+original invocation context to Projects and never assembles a partial team list
+from project results. The Console service operation is `list_team_issues`.

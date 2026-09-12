@@ -264,29 +264,33 @@ test("project routes preserve context, search and property visibility", async ({
 test("workspace discovery lists memberships and switches without IDs", async ({ page }) => {
   await fixture(page);
   await page.goto(`${origin}/projects`);
-  await expect(page.getByRole("heading", { name: "Your workspaces" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspaces", exact: true })).toBeVisible();
   await page.getByRole("link", { name: /Product/ }).click();
   await expect(page.getByRole("button", { name: "New project", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Switch workspace" }).click();
-  await page.getByRole("link", { name: /Design/ }).click();
+  await page.getByRole("menuitem", { name: /Design/ }).click();
   await expect(page).toHaveURL(/organization_id=org-2/);
   await page.unrouteAll();
   await fixture(page, { empty: true });
   await page.goto(`${origin}/projects`);
   await expect(page.getByText("No workspaces yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Check again" })).toBeVisible();
+  await expect(page.getByText("Choose a workspace to view its projects and issues.")).toHaveCount(
+    0,
+  );
   await expect(page.getByRole("textbox", { name: "Organization", exact: true })).toHaveCount(0);
 });
 test("workspace switcher keeps details and supports keyboard search", async ({ page }) => {
   await fixture(page);
   await page.goto(url);
   await page.getByRole("button", { name: "Switch workspace" }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("textbox", { name: "Search workspaces" }).fill("design");
-  await expect(dialog.getByRole("link", { name: /Product/ })).toHaveCount(0);
-  await expect(dialog.getByRole("link", { name: /Design/ })).toBeVisible();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /Design/ })).toBeVisible();
+  await page.keyboard.press("d");
+  await expect(menu.getByRole("menuitem", { name: /Design/ })).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(dialog).toBeHidden();
+  await expect(menu).toBeHidden();
   await expect(page.getByRole("heading", { name: issue.title })).toBeVisible();
   await expect(page.getByRole("button", { name: "Switch workspace" })).toBeFocused();
 });

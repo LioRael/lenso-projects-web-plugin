@@ -344,6 +344,25 @@ impl ProjectsWebPlugin {
         )
     }
 
+    #[get("projects.web.team-issues.list", "/api/teams/{team_id}/issues")]
+    async fn list_team_issues(
+        &self,
+        _actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<TeamIssuesPath>,
+        QueryParams(query): QueryParams<ListIssuesQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        let mut request = query.into_request(String::new());
+        request.project_id = None;
+        request.team_id = Some(path.team_id);
+        json_result(
+            self.projects
+                .list_issues_with_context(context, request)
+                .await,
+            StatusCode::OK,
+        )
+    }
+
     #[post("projects.web.issues.create", "/api/projects/{project_id}/issues")]
     async fn create_issue(
         &self,
@@ -1348,3 +1367,8 @@ impl_web_error!(
     projects::ProjectsListIssueWorkflowStatesInvocationError,
     projects::CAPABILITY_ID
 );
+
+#[derive(Debug, Deserialize)]
+struct TeamIssuesPath {
+    team_id: String,
+}

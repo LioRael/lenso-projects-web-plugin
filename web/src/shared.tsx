@@ -80,11 +80,20 @@ export function Feedback({ error, retry }: { error: Error; retry?: () => void })
     </ContentState.Root>
   );
 }
-export function Empty({ title, description }: { title: string; description?: string }) {
+export function Empty({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+}) {
   return (
     <ContentState.Root>
       <ContentState.Title as="h2">{title}</ContentState.Title>
       {description && <ContentState.Description>{description}</ContentState.Description>}
+      {actions && <ContentState.Actions>{actions}</ContentState.Actions>}
     </ContentState.Root>
   );
 }

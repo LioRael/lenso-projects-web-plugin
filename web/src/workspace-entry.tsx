@@ -1,3 +1,6 @@
+import type { ComponentType, ReactNode } from "react";
+import { ProjectsNavigation } from "./projects-navigation";
+import { TeamIssues } from "./team-issues";
 import { useEffect, useMemo, useState } from "react";
 import { ThemeScope } from "@lenso/ui/theme-scope";
 import { Button } from "@lenso/ui/button";
@@ -18,6 +21,7 @@ type Runtime = {
   };
 };
 type Props = {
+  chrome?: { Sidebar: ComponentType<{ children: ReactNode }> };
   agent?: {
     completedTurns: number;
     setPageContext: (context: { label: string; text: string } | null) => void;
@@ -38,6 +42,7 @@ type Connection = {
   subject?: string;
 };
 const operations = [
+  [/^\/api\/teams\/([^/]+)\/issues$/, "list_team_issues", "GET", "team_id"],
   [/^\/api\/issues\/([^/]+)\/assignee$/, "get_assignee", "GET", "issue_id"],
   [/^\/api\/issues\/([^/]+)\/assignee$/, "set_assignee", "PATCH", "issue_id"],
   [/^\/api\/issues\/([^/]+)\/assignees$/, "list_assignees", "GET", "issue_id"],
@@ -56,6 +61,7 @@ const operations = [
 ] as const;
 export function create(runtime: Runtime) {
   function Page(props: Props) {
+    const [createRequest, setCreateRequest] = useState(0);
     const [connection, setConnection] = useState<Connection>();
     const [error, setError] = useState<string>();
     const [authorization, setAuthorization] = useState<string>();
@@ -112,6 +118,7 @@ export function create(runtime: Runtime) {
     }, [service, attempt, props.signal]);
     const transport = useMemo(
       () => ({
+        sidebarOwned: !!props.chrome?.Sidebar,
         completedAgentTurns: props.agent?.completedTurns || 0,
         setPageContext: (context: { label: string; text: string } | null) =>
           props.agent?.setPageContext(context),
@@ -171,7 +178,14 @@ export function create(runtime: Runtime) {
         requestAgentDraft: props.agent?.requestDraft,
         traceHandoff: traceHandoff(props.location.handoff),
       }),
-      [service, props.signal, props.navigation, props.agent, props.location.handoff],
+      [
+        service,
+        props.signal,
+        props.navigation,
+        props.agent,
+        props.location.handoff,
+        props.chrome?.Sidebar,
+      ],
     );
     async function begin() {
       setBusy(true);
@@ -190,6 +204,8 @@ export function create(runtime: Runtime) {
     }
     const segments = props.location.segments;
     const org = segments[0] === "org" ? segments[1] || "" : "";
+    const team = segments[2] === "teams" ? segments[3] : undefined;
+    const teamIssues = !!team && segments[4] === "issues";
     const project = segments[2] === "projects" ? segments[3] : undefined;
     const issue =
       segments[2] === "issues"
@@ -291,7 +307,32 @@ export function create(runtime: Runtime) {
             </ContentState.Root>
           ) : (
             <Transport.Provider value={transport}>
-              {issue ? (
+              {props.chrome?.Sidebar && (
+                <props.chrome.Sidebar>
+                  <ProjectsNavigation
+                    org={org}
+                    team={team}
+                    issues={teamIssues}
+                    locale={props.environment.locale}
+                    go={(team, issues) =>
+                      props.navigation.go(
+                        team
+                          ? ["org", org, "teams", team, issues ? "issues" : "projects"]
+                          : org
+                            ? ["org", org]
+                            : [],
+                      )
+                    }
+                    create={() => {
+                      props.navigation.go(["org", org]);
+                      setCreateRequest((n) => n + 1);
+                    }}
+                  />
+                </props.chrome.Sidebar>
+              )}
+              {teamIssues ? (
+                <TeamIssues key={`${org}:${team}`} org={org} team={team!} />
+              ) : issue ? (
                 <IssuePage key={`${org}:${issue}`} org={org} id={issue} project={project} />
               ) : project ? (
                 <ProjectDetail
@@ -301,7 +342,13 @@ export function create(runtime: Runtime) {
                   view={segments[4]}
                 />
               ) : (
-                <Workspace key={org} org={org} />
+                <Workspace
+                  key={`${org}:${team || ""}`}
+                  org={org}
+                  team={team}
+                  createRequest={createRequest}
+                  onCreateHandled={() => setCreateRequest(0)}
+                />
               )}
             </Transport.Provider>
           )}

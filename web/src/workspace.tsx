@@ -45,23 +45,38 @@ function savedListView(org: string): { search: string; archived: boolean } {
     return { search: "", archived: false };
   }
 }
-export function Workspace({ org }: { org: string }) {
+export function Workspace({
+  org,
+  team,
+  createRequest = 0,
+  onCreateHandled,
+}: {
+  org: string;
+  team?: string;
+  createRequest?: number;
+  onCreateHandled?: () => void;
+}) {
   const { api, openWorkspace, openProject, traceHandoff } = useProjects();
   const [projects, setProjects] = useState<Project[]>([]);
   const [cursor, setCursor] = useState<string | null>();
   const [error, setError] = useState<Error>();
   const [busy, setBusy] = useState(false);
-  const [archived, setArchived] = useState(() => savedListView(org).archived);
+  const [archived, setArchived] = useState(
+    () => savedListView(team ? `${org}:${team}` : org).archived,
+  );
   const [refresh, setRefresh] = useState(0);
-  const [search, setSearch] = useState(() => savedListView(org).search);
+  const [search, setSearch] = useState(() => savedListView(team ? `${org}:${team}` : org).search);
   useEffect(() => {
     if (!org) return;
     try {
-      sessionStorage.setItem(`projects:list:${org}`, JSON.stringify({ search, archived }));
+      sessionStorage.setItem(
+        `projects:list:${team ? `${org}:${team}` : org}`,
+        JSON.stringify({ search, archived }),
+      );
     } catch {
       /* Storage is optional; navigation remains usable. */
     }
-  }, [org, search, archived]);
+  }, [org, team, search, archived]);
   const [statuses, setStatuses] = useState<ProjectStatus[]>([]);
   useEffect(() => {
     if (!org) return;
@@ -77,6 +92,12 @@ export function Workspace({ org }: { org: string }) {
     return () => c.abort();
   }, [api, org]);
   const [creating, setCreating] = useState(false);
+  useEffect(() => {
+    if (createRequest) {
+      setCreating(true);
+      onCreateHandled?.();
+    }
+  }, [createRequest, onCreateHandled]);
   const [loadingMore, setLoadingMore] = useState(false);
   useEffect(() => {
     if (!org) return;
@@ -84,7 +105,7 @@ export function Workspace({ org }: { org: string }) {
     setBusy(true);
     setError(undefined);
     api<Page<Project>>(
-      `/api/projects?${query({ organization_id: org, include_archived: archived, limit: 50 })}`,
+      `/api/projects?${query({ organization_id: org, team_id: team, include_archived: archived, limit: 50 })}`,
       { signal: controller.signal },
     )
       .then((page) => {
@@ -99,7 +120,7 @@ export function Workspace({ org }: { org: string }) {
         if (!controller.signal.aborted) setBusy(false);
       });
     return () => controller.abort();
-  }, [api, org, archived, refresh]);
+  }, [api, org, team, archived, refresh]);
   const visibleProjects = projects.filter((p) =>
     `${p.name} ${p.summary || ""}`.toLowerCase().includes(search.toLowerCase()),
   );
@@ -109,7 +130,7 @@ export function Workspace({ org }: { org: string }) {
     setError(undefined);
     try {
       const page = await api<Page<Project>>(
-        `/api/projects?${query({ organization_id: org, include_archived: archived, limit: 50, after: cursor })}`,
+        `/api/projects?${query({ organization_id: org, team_id: team, include_archived: archived, limit: 50, after: cursor })}`,
       );
       setProjects((p) => [...p, ...page.items]);
       setCursor(page.next_cursor);
@@ -124,6 +145,7 @@ export function Workspace({ org }: { org: string }) {
     <>
       <WorkspaceHeader
         org={org}
+        team={team}
         actions={
           <>
             <IconButton
@@ -135,7 +157,7 @@ export function Workspace({ org }: { org: string }) {
             >
               <RefreshCw />
             </IconButton>
-            <Button size="compact" onClick={() => setCreating(true)}>
+            <Button variant="secondary" size="compact" onClick={() => setCreating(true)}>
               <Plus size={14} />
               New project
             </Button>
