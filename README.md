@@ -44,7 +44,7 @@ Only the selected organization is remembered locally.
 Issue links use `/projects?organization_id=ORG&issue=STABLE_ID`. The page loads
 the Issue and its paginated activity through authenticated endpoints. Expired
 browser login offers `/login?return_to=...`; the App owns that login route and
-must validate the same-origin return path. The Console Workspace obtains a separate, short-lived delegated grant through business App consent.
+must validate the same-origin return path. An explicitly external Console Workspace obtains a separate, short-lived delegated grant through business App consent. A same-process Workspace instead forwards its request-scoped signed assertion through the bound endpoint.
 
 ## Verification
 
@@ -124,3 +124,31 @@ published, validate with `lenso-cargo test --config
 'patch.crates-io.lenso-capability-organization-directory.path="/absolute/path/to/organization/crates/lenso-capability-organization-directory"'`.
 The consuming App must bind the directory Port and allow its Projects Web
 instance as a directory caller. No Organization Admin permission is needed.
+
+## Same-process Console invocation
+
+A bound Console Workspace may call this endpoint without a second HTTP hop or
+credential. Set `invocation_auth_issuer` and `invocation_auth_public_key` together
+to opt into verification of sealed invocation assertions. The assertion must
+cover `lenso.http.endpoint@1:handle`, have a valid signature and lifetime, and
+represent a user. Missing or invalid assertions fail closed. The Projects
+capabilities still independently check their own operation audiences and
+business permissions. Browser JSON and headers cannot provide this assertion.
+
+`GET /api/projects/session` returns only the authenticated subject for the
+Workspace connection state. It does not create a session or grant access to
+records. Normal browser cookie/Bearer authentication retains the existing Auth
+binding and exact-Origin behavior.
+
+### Console navigation
+
+The optional `chrome.Sidebar` component supplied by Console renders plugin-owned
+navigation inside the existing context sidebar. Projects retains its Transport
+provider across that portal; Console owns placement and fallback restoration.
+Older hosts continue to use the page-header workspace menu.
+
+Workspace menus list authenticated memberships. Team navigation is scoped to the
+selected organization and loads the authorized team catalog. Team issue lists use
+`GET /api/teams/{team_id}/issues` with cursor pagination; the endpoint forwards the
+original invocation context to Projects and never assembles a partial team list
+from project results. The Console service operation is `list_team_issues`.

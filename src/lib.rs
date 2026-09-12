@@ -30,9 +30,33 @@ pub struct ProjectsWebConfig {
     /// Exact browser App origin. Required for session-authenticated mutations.
     #[serde(default)]
     pub origin: Option<String>,
+    /// Verify request-scoped assertions forwarded by a bound same-process adapter.
+    #[serde(default)]
+    pub invocation_auth_issuer: Option<String>,
+    #[serde(default)]
+    pub invocation_auth_public_key: Option<String>,
 }
 
-#[lenso::plugin]
+fn validate_config(config: &ProjectsWebConfig) -> Result<(), RuntimeFailure> {
+    match (
+        &config.invocation_auth_issuer,
+        &config.invocation_auth_public_key,
+    ) {
+        (None, None) => Ok(()),
+        (Some(issuer), Some(key)) => {
+            lenso_auth_sdk::ActorAssertionVerifier::from_public_key_base64(issuer, key)
+                .map(|_| ())
+                .map_err(|_| RuntimeFailure::InvalidResolvedPlan {
+                    detail: "Invalid invocation Auth verification configuration".into(),
+                })
+        }
+        _ => Err(RuntimeFailure::InvalidResolvedPlan {
+            detail: "Invocation Auth requires both issuer and public key".into(),
+        }),
+    }
+}
+
+#[lenso::plugin(validate = validate_config)]
 #[derive(Clone, Debug, Default)]
 pub struct ProjectsWebPlugin {
     #[config]
@@ -47,6 +71,23 @@ pub struct ProjectsWebPlugin {
 
 #[endpoint]
 impl ProjectsWebPlugin {
+    #[get("projects.web.session", "/api/projects/session")]
+    #[allow(clippy::unused_async)] // Endpoint extractors run in the async request pipeline.
+    async fn session(
+        &self,
+        actor: AuthenticatedUser,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        response::json(
+            StatusCode::OK,
+            &serde_json::json!({"subject":actor.subject}),
+        )
+        .map_err(|error| {
+            EndpointHandleInvocationError::Runtime(RuntimeFailure::Internal {
+                detail: format!("serialize Projects session: {error}"),
+            })
+        })
+    }
+
     #[get("projects.web.workspaces", "/api/projects/workspaces")]
     async fn workspaces(
         &self,
@@ -298,6 +339,25 @@ impl ProjectsWebPlugin {
         json_result(
             self.projects
                 .list_issues_with_context(context, query.into_request(path.project_id))
+                .await,
+            StatusCode::OK,
+        )
+    }
+
+    #[get("projects.web.team-issues.list", "/api/teams/{team_id}/issues")]
+    async fn list_team_issues(
+        &self,
+        _actor: AuthenticatedUser,
+        context: InvocationContext,
+        Path(path): Path<TeamIssuesPath>,
+        QueryParams(query): QueryParams<ListIssuesQuery>,
+    ) -> Result<HandleResponse, EndpointHandleInvocationError> {
+        let mut request = query.into_request(String::new());
+        request.project_id = None;
+        request.team_id = Some(path.team_id);
+        json_result(
+            self.projects
+                .list_issues_with_context(context, request)
                 .await,
             StatusCode::OK,
         )
@@ -648,6 +708,29 @@ struct WorkspaceQuery {
     limit: Option<i64>,
 }
 
+#[derive(Debug)]
+struct RequestClock;
+impl lenso_auth_sdk::AssertionClock for RequestClock {
+    fn now(&self) -> time::OffsetDateTime {
+        time::OffsetDateTime::now_utc()
+    }
+}
+impl lenso_auth_sdk::TypedActor for AuthenticatedUser {
+    fn from_assertion(
+        assertion: &lenso_auth_sdk::ActorAssertion,
+    ) -> Result<Self, lenso_auth_sdk::ActorProjectionError> {
+        if assertion.actor_kind() != "user" {
+            return Err(lenso_auth_sdk::ActorProjectionError::UnexpectedActorKind {
+                expected: "user".into(),
+                actual: assertion.actor_kind().into(),
+            });
+        }
+        Ok(Self {
+            subject: assertion.subject().into(),
+        })
+    }
+}
+
 impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
     fn from_request<'a>(
         provider: &'a ProjectsWebPlugin,
@@ -655,6 +738,31 @@ impl FromRequest<ProjectsWebPlugin> for AuthenticatedUser {
         request: &'a HandleRequest,
     ) -> ExtractorFuture<'a, Self> {
         Box::pin(async move {
+            if request.credential.is_none()
+                && let (Some(issuer), Some(key)) = (
+                    &provider.config.invocation_auth_issuer,
+                    &provider.config.invocation_auth_public_key,
+                )
+            {
+                let verifier =
+                    lenso_auth_sdk::ActorAssertionVerifier::from_public_key_base64(issuer, key)
+                        .map_err(|_| {
+                            EndpointHandleInvocationError::Runtime(
+                                RuntimeFailure::InvalidResolvedPlan {
+                                    detail: "Projects Web invocation Auth public key is invalid"
+                                        .into(),
+                                },
+                            )
+                        })?;
+                return verifier
+                    .project_context(
+                        context,
+                        http_endpoint_contract::CAPABILITY_ID,
+                        "handle",
+                        &RequestClock,
+                    )
+                    .map_err(|_| authentication_problem().into());
+            }
             if !session_origin_allowed(&provider.config, request) {
                 return Err(response::problem(
                     StatusCode::FORBIDDEN,
@@ -1112,6 +1220,8 @@ mod tests {
             }),
         };
         let config = ProjectsWebConfig {
+            invocation_auth_issuer: None,
+            invocation_auth_public_key: None,
             origin: Some("https://app.example".into()),
         };
         assert!(!session_origin_allowed(&config, &request));
@@ -1257,3 +1367,8 @@ impl_web_error!(
     projects::ProjectsListIssueWorkflowStatesInvocationError,
     projects::CAPABILITY_ID
 );
+
+#[derive(Debug, Deserialize)]
+struct TeamIssuesPath {
+    team_id: String,
+}

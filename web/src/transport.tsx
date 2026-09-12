@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import { api, issueHref, workspaceHref, projectHref, type TraceHandoff } from "./api";
 export const Transport = createContext({
   api,
+  sidebarOwned: false,
   completedAgentTurns: 0,
   setPageContext: (_context: { label: string; text: string } | null) => {},
   openProject: (org: string, id: string) => {

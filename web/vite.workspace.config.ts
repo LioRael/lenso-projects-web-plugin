@@ -13,7 +13,7 @@ export default defineConfig({
         writeFileSync(
           path,
           `export const apiMajor = 1;\nexport function createWorkspace(runtime) {\nconst React = runtime.react;
-const require = (name) => { if (name === "react") return React; throw new Error("Unsupported workspace dependency: " + name); };\nconst JSX = { Fragment: React.Fragment, jsx: (type, props, key) => runtime.createElement(type, key === undefined ? props : {...props,key}), jsxs: (type, props, key) => runtime.createElement(type, key === undefined ? props : {...props,key}) };\n${bundle}\nreturn ProjectsModule.create(runtime);\n}\n`,
+const require = (name) => { if (name === "react") return React; throw new Error("Unsupported workspace dependency: " + name); };\nconst JSX = { Fragment: React.Fragment, jsx: (type, props, key) => runtime.createElement(type, key === undefined ? props : {...props,key}), jsxs: (type, props, key) => runtime.createElement(type, key === undefined ? props : {...props,key}, ...props.children) };\n${bundle}\nreturn ProjectsModule.create(runtime);\n}\n`,
         );
       },
     },

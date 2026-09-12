@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { ProjectsNavigation } from "./projects-navigation";
+import { TeamIssues } from "./team-issues";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ThemeScope } from "@lenso/ui/theme-scope";
 import { Button } from "@lenso/ui/button";
 import { ContentState } from "@lenso/ui/content-state";
@@ -18,6 +21,7 @@ type Runtime = {
   };
 };
 type Props = {
+  chrome?: { Sidebar: ComponentType<{ children: ReactNode }> };
   agent?: {
     completedTurns: number;
     setPageContext: (context: { label: string; text: string } | null) => void;
@@ -31,8 +35,14 @@ type Props = {
   };
   signal: AbortSignal;
 };
-type Connection = { connected: boolean; label: string; subject?: string };
+type Connection = {
+  mode?: "console" | "external";
+  connected: boolean;
+  label: string;
+  subject?: string;
+};
 const operations = [
+  [/^\/api\/teams\/([^/]+)\/issues$/, "list_team_issues", "GET", "team_id"],
   [/^\/api\/issues\/([^/]+)\/assignee$/, "get_assignee", "GET", "issue_id"],
   [/^\/api\/issues\/([^/]+)\/assignee$/, "set_assignee", "PATCH", "issue_id"],
   [/^\/api\/issues\/([^/]+)\/assignees$/, "list_assignees", "GET", "issue_id"],
@@ -50,13 +60,33 @@ const operations = [
   [/^\/api\/issues\/([^/]+)$/, "get_issue", "GET", "issue_id"],
 ] as const;
 export function create(runtime: Runtime) {
+  // A contribution uses one Plan-bound endpoint. Queue its requests so hosts
+  // with a single admission slot do not reject simultaneous catalog reads.
+  // Navigation cancellation skips queued work before it reaches the provider.
+  let pending: Promise<unknown> = Promise.resolve();
+  const services: Runtime["services"] = {
+    invoke<T, R>(
+      service: string,
+      operation: string,
+      request: T,
+      options?: { signal?: AbortSignal },
+    ): Promise<R> {
+      const result = pending.then(() => {
+        options?.signal?.throwIfAborted();
+        return runtime.services.invoke<T, R>(service, operation, request, options);
+      });
+      pending = result.catch(() => undefined);
+      return result;
+    },
+  };
   function Page(props: Props) {
+    const [createRequest, setCreateRequest] = useState(0);
     const [connection, setConnection] = useState<Connection>();
     const [error, setError] = useState<string>();
     const [authorization, setAuthorization] = useState<string>();
     const [busy, setBusy] = useState(false);
     const [attempt, setAttempt] = useState<string>();
-    const service = runtime.services;
+    const service = services;
     useEffect(() => {
       let active = true;
       service
@@ -105,63 +135,106 @@ export function create(runtime: Runtime) {
         clearTimeout(timer);
       };
     }, [service, attempt, props.signal]);
+    const api = useCallback(
+      async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
+        const url = new URL(path, "http://workspace.invalid");
+        const method = options.method || "GET";
+        const rule = operations.find(
+          ([pattern, , verb]) => verb === method && pattern.test(url.pathname),
+        );
+        if (!rule) throw new Error("This workspace operation is not supported.");
+        const body = options.body
+          ? JSON.parse(String(options.body))
+          : Object.fromEntries(url.searchParams);
+        if (rule.length === 4) {
+          const id = url.pathname.match(rule[0])?.[1];
+          if (!id) throw new Error("The workspace record URL is invalid.");
+          body[rule[3]] = decodeURIComponent(id);
+        }
+        const result = await service.invoke<object, { status: number; body: T }>(
+          "projects",
+          rule[1],
+          body,
+          { signal: options.signal || props.signal },
+        );
+        if (result.status === 401) {
+          setConnection((c) => (c ? { ...c, connected: false } : undefined));
+          throw new ApiError(
+            401,
+            connection?.mode === "console"
+              ? "Projects could not verify your Console session."
+              : "Reconnect your business App to continue.",
+          );
+        }
+        if (result.status >= 400)
+          throw new ApiError(
+            result.status,
+            result.status === 403
+              ? "Your account does not have access to this record."
+              : "Projects could not complete this request. Refresh the record before trying again.",
+          );
+        return result.body;
+      },
+      [service, props.signal, connection?.mode],
+    );
+    const segments = props.location.segments;
+    const org = segments[0] === "org" ? segments[1] || "" : "";
+    const team = segments[2] === "teams" ? segments[3] : undefined;
+    const teamIssues = !!team && segments[4] === "issues";
+    const project = segments[2] === "projects" ? segments[3] : undefined;
+    const issue = teamIssues
+      ? segments[5]
+      : segments[2] === "issues"
+        ? segments[3]
+        : project && segments[4] === "issues"
+          ? segments[5]
+          : undefined;
+    const setPageContext = useCallback(
+      (context: { label: string; text: string } | null) => props.agent?.setPageContext(context),
+      [props.agent?.setPageContext],
+    );
     const transport = useMemo(
       () => ({
+        sidebarOwned: !!props.chrome?.Sidebar,
         completedAgentTurns: props.agent?.completedTurns || 0,
-        setPageContext: (context: { label: string; text: string } | null) =>
-          props.agent?.setPageContext(context),
-        api: async <T,>(path: string, options: RequestInit = {}): Promise<T> => {
-          const url = new URL(path, "http://workspace.invalid");
-          const method = options.method || "GET";
-          const rule = operations.find(
-            ([pattern, , verb]) => verb === method && pattern.test(url.pathname),
-          );
-          if (!rule) throw new Error("This workspace operation is not supported.");
-          const body = options.body
-            ? JSON.parse(String(options.body))
-            : Object.fromEntries(url.searchParams);
-          if (rule.length === 4) {
-            const id = url.pathname.match(rule[0])?.[1];
-            if (!id) throw new Error("The workspace record URL is invalid.");
-            body[rule[3]] = decodeURIComponent(id);
-          }
-          const result = await service.invoke<object, { status: number; body: T }>(
-            "projects",
-            rule[1],
-            body,
-            { signal: options.signal || props.signal },
-          );
-          if (result.status === 401) {
-            setConnection((c) => (c ? { ...c, connected: false } : undefined));
-            throw new ApiError(401, "Reconnect your business App to continue.");
-          }
-          if (result.status >= 400)
-            throw new ApiError(
-              result.status,
-              result.status === 403
-                ? "Your account does not have access to this record."
-                : "The business App could not complete this request. Refresh the record before trying again.",
-            );
-          return result.body;
-        },
+        setPageContext,
+        api,
         openProject: (org: string, id: string) =>
           props.navigation.go(["org", org, "projects", id, "overview"]),
         openWorkspace: (org: string) => props.navigation.go(["org", org]),
         openIssue: (org: string, id: string, project?: string) =>
           props.navigation.go(
-            project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
+            project
+              ? ["org", org, "projects", project, "issues", id]
+              : team
+                ? ["org", org, "teams", team, "issues", id]
+                : ["org", org, "issues", id],
           ),
         workspaceHref: (org: string) => props.navigation.href(["org", org]),
         projectHref: (org: string, id: string, view = "overview") =>
           props.navigation.href(["org", org, "projects", id, view]),
         issueHref: (org: string, id: string, project?: string) =>
           props.navigation.href(
-            project ? ["org", org, "projects", project, "issues", id] : ["org", org, "issues", id],
+            project
+              ? ["org", org, "projects", project, "issues", id]
+              : team
+                ? ["org", org, "teams", team, "issues", id]
+                : ["org", org, "issues", id],
           ),
         requestAgentDraft: props.agent?.requestDraft,
         traceHandoff: traceHandoff(props.location.handoff),
       }),
-      [service, props.signal, props.navigation, props.agent, props.location.handoff],
+      [
+        api,
+        setPageContext,
+        team,
+        service,
+        props.signal,
+        props.navigation,
+        props.agent,
+        props.location.handoff,
+        props.chrome?.Sidebar,
+      ],
     );
     async function begin() {
       setBusy(true);
@@ -178,15 +251,6 @@ export function create(runtime: Runtime) {
         setBusy(false);
       }
     }
-    const segments = props.location.segments;
-    const org = segments[0] === "org" ? segments[1] || "" : "";
-    const project = segments[2] === "projects" ? segments[3] : undefined;
-    const issue =
-      segments[2] === "issues"
-        ? segments[3]
-        : project && segments[4] === "issues"
-          ? segments[5]
-          : undefined;
     return (
       <ThemeScope theme={props.environment.theme === "dark" ? "dark" : "light"}>
         <div
@@ -222,20 +286,47 @@ export function create(runtime: Runtime) {
           {!connection?.connected ? (
             <ContentState.Root>
               <ContentState.Title as="h1">
-                {error
-                  ? "Unable to connect Projects"
-                  : connection
-                    ? "Connect Projects"
-                    : "Loading Projects…"}
+                {connection?.mode === "console"
+                  ? "Projects is unavailable"
+                  : error
+                    ? "Unable to connect Projects"
+                    : connection
+                      ? "Connect Projects"
+                      : "Loading Projects…"}
               </ContentState.Title>
               <ContentState.Description>
-                {error ||
-                  (connection
-                    ? `Sign in to ${connection.label} to open your projects and issues.`
-                    : "Checking your business account.")}
+                {connection?.mode === "console"
+                  ? "Projects could not verify your Console session. Contact your administrator if retrying does not help."
+                  : error ||
+                    (connection
+                      ? `Sign in to ${connection.label} to open your projects and issues.`
+                      : "Checking your business account.")}
               </ContentState.Description>
               <ContentState.Actions>
-                {authorization ? (
+                {connection?.mode === "console" ? (
+                  <Button
+                    loading={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      try {
+                        setConnection(
+                          await service.invoke<object, Connection>(
+                            "projects",
+                            "connection_status",
+                            {},
+                            { signal: props.signal },
+                          ),
+                        );
+                      } catch (e) {
+                        setError((e as Error).message);
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
+                ) : authorization ? (
                   <Button
                     nativeButton={false}
                     role="link"
@@ -254,7 +345,32 @@ export function create(runtime: Runtime) {
             </ContentState.Root>
           ) : (
             <Transport.Provider value={transport}>
-              {issue ? (
+              {props.chrome?.Sidebar && (
+                <props.chrome.Sidebar>
+                  <ProjectsNavigation
+                    org={org}
+                    team={team}
+                    issues={teamIssues}
+                    locale={props.environment.locale}
+                    go={(team, issues) =>
+                      props.navigation.go(
+                        team
+                          ? ["org", org, "teams", team, issues ? "issues" : "projects"]
+                          : org
+                            ? ["org", org]
+                            : [],
+                      )
+                    }
+                    create={() => {
+                      props.navigation.go(["org", org]);
+                      setCreateRequest((n) => n + 1);
+                    }}
+                  />
+                </props.chrome.Sidebar>
+              )}
+              {teamIssues && !issue ? (
+                <TeamIssues key={`${org}:${team}`} org={org} team={team!} />
+              ) : issue ? (
                 <IssuePage key={`${org}:${issue}`} org={org} id={issue} project={project} />
               ) : project ? (
                 <ProjectDetail
@@ -264,7 +380,13 @@ export function create(runtime: Runtime) {
                   view={segments[4]}
                 />
               ) : (
-                <Workspace key={org} org={org} />
+                <Workspace
+                  key={`${org}:${team || ""}`}
+                  org={org}
+                  team={team}
+                  createRequest={createRequest}
+                  onCreateHandled={() => setCreateRequest(0)}
+                />
               )}
             </Transport.Provider>
           )}
