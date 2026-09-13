@@ -1,0 +1,59 @@
+Cargo.toml
+  s_3724267b9ee00e::t_2016ac60b61646 50-53
+README.md
+  s_3724267b9ee00e::t_a84c1e371248f4 89-99,102,105-115
+crates/lenso-projects-workspace-plugin/Cargo.toml
+  s_3724267b9ee00e::t_24dc0af24bf6ce 1-43
+crates/lenso-projects-workspace-plugin/README.md
+  s_3724267b9ee00e::t_1a3ed0cc9da338 1-99
+crates/lenso-projects-workspace-plugin/config.defaults.json
+  s_3724267b9ee00e::t_20ee428cf9c9c4 1
+crates/lenso-projects-workspace-plugin/config.schema.json
+  s_3724267b9ee00e::t_a0c863b2af4693 1-9
+crates/lenso-projects-workspace-plugin/src/connection.rs
+  s_3724267b9ee00e::t_c8a3f0fbba4f78 1-487
+crates/lenso-projects-workspace-plugin/src/lib.rs
+  s_3724267b9ee00e::t_cfc14f367dbff8 1-242
+crates/lenso-projects-workspace-plugin/src/native.rs
+  s_3724267b9ee00e::t_4fb1b159ed1816 1-89
+docs/plugin-card.md
+  s_3724267b9ee00e::t_b9bd0f9fc242fd 11
+scripts/check-public-packages.sh
+  s_3724267b9ee00e::t_5e4aa0bcd0f54a 12,15-17,24
+scripts/check-repository-boundary.sh
+  s_3724267b9ee00e::t_05ff0a34ddd8e4 24-32
+src/lib.rs
+  s_3724267b9ee00e::t_732f622f8a2461 4
+src/workspace_assets.rs
+  s_3724267b9ee00e::t_67924457de921d 1-7
+web/check-assets.mjs
+  s_3724267b9ee00e::t_44d43ec1d252a8 20
+web/playwright.config.ts
+  s_3724267b9ee00e::t_0a5391543b70a1 4-9
+web/tests/workspace-fixture.html
+  s_3724267b9ee00e::t_08e0d63dfc896f 1-11
+web/tests/workspace-fixture.tsx
+  s_3724267b9ee00e::t_0d0116d1448209 1-95
+web/tests/workspace-module.d.ts
+  s_3724267b9ee00e::t_94c0f8ee3ca20c 1-32
+web/tests/workspace.spec.ts
+  s_3724267b9ee00e::t_f3c3bfe910c33e 1-47
+web/vite.workspace-test.config.ts
+  s_3724267b9ee00e::t_ecd3f7abe8fc49 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e8f08f39c18f619100440c283dbb16558af6a0a1",
+  "prompts": {},
+  "sessions": {
+    "s_3724267b9ee00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09863-bdc5-7501-9f17-8276e89fcd6d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "LioRael <leo@lenso.dev>"
+    }
+  }
+}
