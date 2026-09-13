@@ -1,0 +1,43 @@
+[package]
+name = "lenso-projects-workspace-plugin"
+version = "0.1.0"
+description = "Projects Workspace contribution Plugin for Lenso Console."
+edition = "2024"
+license = "MIT"
+publish = false
+rust-version = "1.94"
+
+[package.metadata.lenso]
+plugin-id = "lenso.console.workspace.projects"
+root-slot = "console-workspaces"
+
+[dependencies]
+lenso-projects-web-plugin = { path = "../..", version = "0.1.2" }
+lenso-capability-http-endpoint = "0.3.1"
+base64 = "0.22"
+futures = "0.3"
+lenso = "0.5.17"
+lenso-capability-ui-contribution = { git = "https://github.com/LioRael/lenso-console", rev = "2a9bfc9fcf35afa4cfc637e11a9f3bbcb15b92e1" }
+lenso-capability-workspace-service = { git = "https://github.com/LioRael/lenso-console", rev = "2a9bfc9fcf35afa4cfc637e11a9f3bbcb15b92e1" }
+lenso-kernel = "0.3.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+  "stream",
+] }
+tokio = { version = "1.52", features = ["sync", "time", "macros"] }
+zeroize = "1.8"
+time = { version = "0.3", features = ["parsing"] }
+uuid = { version = "1.26", features = ["v4"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

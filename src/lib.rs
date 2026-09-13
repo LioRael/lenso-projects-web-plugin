@@ -1,6 +1,7 @@
 //! Standalone linked Web surface for the Lenso Projects capabilities.
 
 mod assets;
+pub mod workspace_assets;
 
 use std::fmt::Debug;
 

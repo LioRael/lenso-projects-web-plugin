@@ -17,5 +17,5 @@ const before = JSON.stringify(digest());
 execFileSync("npm", ["run", "build"], { stdio: "inherit" });
 if (JSON.stringify(digest()) !== before)
   throw new Error(
-    "Embedded UI assets are stale. Run npm --prefix web run build and commit src/assets.",
+    "Embedded UI assets are stale. Run npm --prefix web run build and commit src/assets and src/workspace.",
   );

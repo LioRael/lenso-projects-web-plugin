@@ -86,16 +86,33 @@ session login return, project creation and server authority are preserved.
 
 ## Open inside Console
 
-Build this repository, then from the Console checkout run:
+The `crates/lenso-projects-workspace-plugin` package owns the Console contribution
+and fixed-operation adapter. It consumes the exact module and styles exported by
+`lenso-projects-web-plugin::workspace_assets`. Build assets here with
+`npm run build --prefix web`; there is no Console asset-copy step.
+
+The Workspace package keeps the Plugin ID `lenso.console.workspace.projects` so
+existing Plugin Root files remain valid. Installing the business Web crate alone
+does not activate a Workspace. A Host links the Workspace package and selects its
+instance through the App Plan.
+
+During the cross-repository migration, run from the edited Console checkout:
 
 ```sh
-node scripts/import-projects-workspace.mjs /path/to/lenso-projects-web-plugin
-LENSO_CONSOLE_PROJECTS_ORIGIN=http://127.0.0.1:55440 cargo run --locked --manifest-path service/Cargo.toml --bin lenso-console-with-agent
+node scripts/with-projects-workspace.mjs /path/to/lenso-projects-web-plugin -- test --locked --manifest-path service/Cargo.toml --workspace --all-features
 ```
 
-This source command requires the Agent binaries on PATH (or configured through
-`LENSO_AGENT_WEB_BIN` and `LENSO_CONSOLE_AGENT_WEB_BIN`). It does not imply that the
-currently published npm package already includes this change.
+This uses temporary Cargo overrides for the edited owner and shared contracts.
+After the owner change is delivered, Console must pin the new Git revision and
+regenerate its lock without overrides. The Workspace package is Git-distributed
+while the UI contracts remain unpublished; the business Web crate remains
+independently publishable with registry dependencies. This does not claim that
+the currently published npm distribution contains the migration.
+
+For an explicitly external business App, set `LENSO_CONSOLE_PROJECTS_ORIGIN` on
+the Console App. Native composition instead binds one Projects Web endpoint and
+omits that origin. The existing Agent launcher still requires the Agent binaries
+on PATH or its documented binary environment variables.
 
 The native module renders only Projects content in the real Console Shell. The
 primary rail, context sidebar, theme, footer and mini agent remain Console-owned.
