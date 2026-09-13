@@ -86,16 +86,28 @@ session login return, project creation and server authority are preserved.
 
 ## Open inside Console
 
-Build this repository, then from the Console checkout run:
+The `crates/lenso-projects-workspace-plugin` package owns the Console contribution
+and fixed-operation adapter. It consumes the exact module and styles exported by
+`lenso-projects-web-plugin::workspace_assets`. Build assets here with
+`npm run build --prefix web`; there is no Console asset-copy step.
 
-```sh
-node scripts/import-projects-workspace.mjs /path/to/lenso-projects-web-plugin
-LENSO_CONSOLE_PROJECTS_ORIGIN=http://127.0.0.1:55440 cargo run --locked --manifest-path service/Cargo.toml --bin lenso-console-with-agent
-```
+The Workspace package keeps the Plugin ID `lenso.console.workspace.projects` so
+existing Plugin Root files remain valid. Installing the business Web crate alone
+does not activate a Workspace. A Host links the Workspace package and selects its
+instance through the App Plan.
 
-This source command requires the Agent binaries on PATH (or configured through
-`LENSO_AGENT_WEB_BIN` and `LENSO_CONSOLE_AGENT_WEB_BIN`). It does not imply that the
-currently published npm package already includes this change.
+The Console App pins both owner packages to the same immutable Git revision.
+Its composition manifest aligns shared UI contract sources using repository-relative
+Cargo patches, so native Rust ports use one contract type identity. A clean Console
+checkout needs no asset import, sibling repository or temporary Cargo configuration.
+The Workspace package is Git-distributed while the UI contracts remain unpublished;
+the business Web crate remains independently publishable with registry dependencies.
+Source delivery does not imply a new npm or crates.io release.
+
+For an explicitly external business App, set `LENSO_CONSOLE_PROJECTS_ORIGIN` on
+the Console App. Native composition instead binds one Projects Web endpoint and
+omits that origin. The existing Agent launcher still requires the Agent binaries
+on PATH or its documented binary environment variables.
 
 The native module renders only Projects content in the real Console Shell. The
 primary rail, context sidebar, theme, footer and mini agent remain Console-owned.

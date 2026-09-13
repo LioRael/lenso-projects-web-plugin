@@ -8,7 +8,7 @@
 - **Success proof:** a real Kernel composition demonstrates that the target Projects Provider verifies the forwarded actor assertion.
 - **Deletion proof:** a resolved Plan without `lenso.projects.web` still starts and invokes `lenso.projects@1` successfully.
 - **Host boundary:** a native Host must link this crate and bind it to Web Ingress. It is not automatically installed by generic `lenso run`.
-- **Console boundary:** this business Plugin serves authenticated Projects HTTP operations and builds a native UI module. The Console Host explicitly admits the separate Projects Workspace contribution; the business crate does not self-register navigation.
+- **Console boundary:** this business Plugin serves authenticated Projects HTTP operations and builds a native UI module. This repository also owns `crates/lenso-projects-workspace-plugin`; the Console Host explicitly admits that separate contribution. The business crate does not self-register navigation. The contribution consumes the business package's embedded Workspace assets without copying them into Console.
 
 ## Browser account and Issue recovery
 
