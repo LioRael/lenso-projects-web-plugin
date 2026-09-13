@@ -1,0 +1,19 @@
+README.md
+  s_3724267b9ee00e::t_88c8919a340dc2 99-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2275953ffb4069e186dcbd86b95bfbc7c3d09b7d",
+  "prompts": {},
+  "sessions": {
+    "s_3724267b9ee00e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09863-bdc5-7501-9f17-8276e89fcd6d",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "LioRael <leo@lenso.dev>"
+    }
+  }
+}
