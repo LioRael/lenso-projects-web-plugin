@@ -96,18 +96,13 @@ existing Plugin Root files remain valid. Installing the business Web crate alone
 does not activate a Workspace. A Host links the Workspace package and selects its
 instance through the App Plan.
 
-During the cross-repository migration, run from the edited Console checkout:
-
-```sh
-node scripts/with-projects-workspace.mjs /path/to/lenso-projects-web-plugin -- test --locked --manifest-path service/Cargo.toml --workspace --all-features
-```
-
-This uses temporary Cargo overrides for the edited owner and shared contracts.
-After the owner change is delivered, Console must pin the new Git revision and
-regenerate its lock without overrides. The Workspace package is Git-distributed
-while the UI contracts remain unpublished; the business Web crate remains
-independently publishable with registry dependencies. This does not claim that
-the currently published npm distribution contains the migration.
+The Console App pins both owner packages to the same immutable Git revision.
+Its composition manifest aligns shared UI contract sources using repository-relative
+Cargo patches, so native Rust ports use one contract type identity. A clean Console
+checkout needs no asset import, sibling repository or temporary Cargo configuration.
+The Workspace package is Git-distributed while the UI contracts remain unpublished;
+the business Web crate remains independently publishable with registry dependencies.
+Source delivery does not imply a new npm or crates.io release.
 
 For an explicitly external business App, set `LENSO_CONSOLE_PROJECTS_ORIGIN` on
 the Console App. Native composition instead binds one Projects Web endpoint and
